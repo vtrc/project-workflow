@@ -2,7 +2,7 @@
 
 **[Leer en español](README.md)**
 
-This repository is an instruction-only workflow framework for Codex-compatible Agent Skills. It provides one entry point, `$workflow-personal`, and lets a project-local `workflow.yaml` declare which Skills are composed, in what order, and which durable handoffs they produce. It is not an application and does not include third-party Skills.
+This repository is an instruction-only workflow framework for Codex-compatible Agent Skills. It provides one entry point, `$project-workflow`, and lets a project-local `workflow.yaml` declare which Skills are composed, in what order, and which durable handoffs they produce. It is not an application and does not include third-party Skills.
 
 ## Quick path
 
@@ -12,7 +12,7 @@ This repository is an instruction-only workflow framework for Codex-compatible A
 4. Run the entry point:
 
    ```text
-   $workflow-personal
+   $project-workflow
    Design a small onboarding workflow for my project.
    ```
 
@@ -21,14 +21,14 @@ This repository is an instruction-only workflow framework for Codex-compatible A
 ## Architecture
 
 ```text
-$workflow-personal → workflow.yaml → workflow-orchestrator → .workflow/
+$project-workflow → workflow.yaml → workflow-orchestrator → .workflow/
        input            recipe              composition            state and handoffs
 ```
 
 | Component | Responsibility |
 | --- | --- |
 | [`workflow.yaml`](workflow.yaml) | Source of truth for steps, bindings, transitions, and artifacts. |
-| [`workflow-personal`](.agents/skills/workflow-personal/SKILL.md) | Entry point: validates the recipe, persists state, and follows transitions. |
+| [`project-workflow`](.agents/skills/project-workflow/SKILL.md) | Entry point: validates the recipe, persists state, and follows transitions. |
 | [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md) | Neutral contract for composing Skills and managing handoffs. |
 | `.agents/skills/<name>/SKILL.md` | Local Skill selected by the recipe. |
 | `.workflow/` | Runtime state and generated artifacts; not source code. |
@@ -60,6 +60,6 @@ See the [recipe schema](.agents/skills/workflow-orchestrator/references/recipe-s
 
 ## Execution and boundaries
 
-When `$workflow-personal` runs, the workflow loads and validates the recipe, composes each eligible binding, and persists handoffs under `.workflow/`. Resolve any user decision or blocked binding before expecting terminal `completed` state.
+When `$project-workflow` runs, the workflow loads and validates the recipe, composes each eligible binding, and persists handoffs under `.workflow/`. Resolve any user decision or blocked binding before expecting terminal `completed` state.
 
 `.workflow/` and external Skills are not included in the published repository. Install the Skills named by your recipe on the host separately. There is no application runtime, package manager, database, or service to install: you only need an Agent Skills-capable host that honors `.agents/skills/` and the composition contract.

@@ -7,7 +7,7 @@ default_invocation: compose
 model: host_default
 reasoning_effort: host_default
 
-# Start once with $workflow-personal. `compose` means the parent workflow reads
+# Start once with $project-workflow. `compose` means the parent workflow reads
 # and applies the named Skill's instructions; the user never invokes these steps.
 steps:
   - id: clarify-with-grilling

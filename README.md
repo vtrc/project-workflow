@@ -2,7 +2,7 @@
 
 **[Read this in English](README.en.md)**
 
-Este repositorio es un framework de workflow basado en instrucciones para Agent Skills compatibles con Codex. Ofrece un único punto de entrada, `$workflow-personal`, y permite declarar en `workflow.yaml` qué Skills se componen, en qué orden y qué entregables persistentes producen. No es una aplicación ni incluye Skills de terceros.
+Este repositorio es un framework de workflow basado en instrucciones para Agent Skills compatibles con Codex. Ofrece un único punto de entrada, `$project-workflow`, y permite declarar en `workflow.yaml` qué Skills se componen, en qué orden y qué entregables persistentes producen. No es una aplicación ni incluye Skills de terceros.
 
 ## Ruta rápida
 
@@ -12,7 +12,7 @@ Este repositorio es un framework de workflow basado en instrucciones para Agent 
 4. Ejecuta el punto de entrada:
 
    ```text
-   $workflow-personal
+   $project-workflow
    Diseña un flujo sencillo de onboarding para mi proyecto.
    ```
 
@@ -21,14 +21,14 @@ Este repositorio es un framework de workflow basado en instrucciones para Agent 
 ## Arquitectura
 
 ```text
-$workflow-personal → workflow.yaml → workflow-orchestrator → .workflow/
+$project-workflow → workflow.yaml → workflow-orchestrator → .workflow/
    entrada             receta          composición             estado y entregables
 ```
 
 | Componente | Responsabilidad |
 | --- | --- |
 | [`workflow.yaml`](workflow.yaml) | Fuente de verdad para pasos, bindings, transiciones y artefactos. |
-| [`workflow-personal`](.agents/skills/workflow-personal/SKILL.md) | Punto de entrada: valida la receta, persiste el estado y sigue las transiciones. |
+| [`project-workflow`](.agents/skills/project-workflow/SKILL.md) | Punto de entrada: valida la receta, persiste el estado y sigue las transiciones. |
 | [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md) | Contrato neutral para componer Skills y gestionar handoffs. |
 | `.agents/skills/<name>/SKILL.md` | Skill local seleccionada por la receta. |
 | `.workflow/` | Estado de ejecución y artefactos generados; no es código fuente. |
@@ -60,6 +60,6 @@ Consulta el [esquema de receta](.agents/skills/workflow-orchestrator/references/
 
 ## Ejecución y límites
 
-Al ejecutar `$workflow-personal`, el workflow carga y valida la receta, compone cada binding elegible y persiste los handoffs en `.workflow/`. Resuelve cualquier decisión del usuario o binding bloqueado antes de esperar el estado terminal `completed`.
+Al ejecutar `$project-workflow`, el workflow carga y valida la receta, compone cada binding elegible y persiste los handoffs en `.workflow/`. Resuelve cualquier decisión del usuario o binding bloqueado antes de esperar el estado terminal `completed`.
 
 `.workflow/` y las Skills externas no se incluyen en el repositorio publicado. Instala las Skills nombradas por tu receta en el host por separado. No hay runtime de aplicación, gestor de paquetes, base de datos ni servicio que instalar: solo necesitas un host compatible con Agent Skills que respete `.agents/skills/` y el contrato de composición.

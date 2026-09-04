@@ -1,13 +1,13 @@
 ---
-name: workflow-personal
-description: "Trigger: project workflow trial. Start one YAML-declared work item and compose local Skills without intermediate user invocations."
+name: project-workflow
+description: "Trigger: project workflow. Start one YAML-declared work item and compose local Skills without intermediate user invocations."
 license: Apache-2.0
 metadata:
   author: project
   version: "1.1"
 ---
 
-# Personal Workflow Trial
+# Project Workflow
 
 ## Activation Contract
 
