@@ -28,6 +28,7 @@ $project-workflow → workflow.yaml → workflow-orchestrator → .workflow/
 | Componente | Responsabilidad |
 | --- | --- |
 | [`workflow.yaml`](workflow.yaml) | Fuente de verdad para pasos, bindings, transiciones y artefactos. |
+| [`workflow.schema.yaml`](workflow.schema.yaml) | Schema JSON Schema Draft 2020-12 para validación estructural y autocompletado opcional. |
 | [`project-workflow`](.agents/skills/project-workflow/SKILL.md) | Punto de entrada: valida la receta, persiste el estado y sigue las transiciones. |
 | [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md) | Contrato neutral para componer Skills y gestionar handoffs. |
 | `.agents/skills/<name>/SKILL.md` | Skill local seleccionada por la receta. |
@@ -57,6 +58,11 @@ Puntos clave:
 - Define cada artefacto una sola vez y conserva su trazabilidad.
 
 Consulta el [esquema de receta](.agents/skills/workflow-orchestrator/references/recipe-schema.md), el [contrato de artefactos](.agents/skills/workflow-orchestrator/references/artifact-contract.md) y el [contrato de delegación](.agents/skills/workflow-orchestrator/references/delegation-contract.md) para los detalles completos.
+
+[`workflow.schema.yaml`](workflow.schema.yaml) comprueba la estructura, los
+tipos y los enums básicos. La validación semántica —transiciones, readiness y
+lineage de artefactos, elegibilidad de Skills y capacidades del host— sigue
+siendo responsabilidad del orquestador.
 
 ## Ejecución y límites
 

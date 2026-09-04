@@ -28,6 +28,7 @@ $project-workflow → workflow.yaml → workflow-orchestrator → .workflow/
 | Component | Responsibility |
 | --- | --- |
 | [`workflow.yaml`](workflow.yaml) | Source of truth for steps, bindings, transitions, and artifacts. |
+| [`workflow.schema.yaml`](workflow.schema.yaml) | JSON Schema Draft 2020-12 for structural validation and optional editor completion. |
 | [`project-workflow`](.agents/skills/project-workflow/SKILL.md) | Entry point: validates the recipe, persists state, and follows transitions. |
 | [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md) | Neutral contract for composing Skills and managing handoffs. |
 | `.agents/skills/<name>/SKILL.md` | Local Skill selected by the recipe. |
@@ -57,6 +58,11 @@ Key rules:
 - Define each artifact once and preserve its lineage.
 
 See the [recipe schema](.agents/skills/workflow-orchestrator/references/recipe-schema.md), [artifact contract](.agents/skills/workflow-orchestrator/references/artifact-contract.md), and [delegation contract](.agents/skills/workflow-orchestrator/references/delegation-contract.md) for full details.
+
+[`workflow.schema.yaml`](workflow.schema.yaml) checks structure, types, and
+basic enums. Semantic validation—transitions, artifact readiness and lineage,
+Skill eligibility, and host capabilities—remains the orchestrator's
+responsibility.
 
 ## Execution and boundaries
 

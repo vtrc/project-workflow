@@ -1,0 +1,263 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://example.invalid/workflow.schema.yaml
+title: Codex Agent Skills workflow recipe
+description: >-
+  Machine-readable structural schema for the project-local workflow.yaml
+  recipe. Semantic orchestration rules remain the responsibility of the
+  workflow orchestrator.
+type: object
+additionalProperties: false
+required:
+  - id
+  - artifact_root
+  - default_delegation
+  - default_on_blocked
+  - default_invocation
+  - model
+  - reasoning_effort
+  - steps
+properties:
+  id:
+    type: string
+    minLength: 1
+    description: Stable identifier for this workflow recipe.
+    examples:
+      - grill-me-superpowers-trial
+  artifact_root:
+    $ref: '#/$defs/projectRelativePath'
+    description: Project-relative directory used as the root for generated artifacts.
+    examples:
+      - .workflow/artifacts
+  default_delegation:
+    $ref: '#/$defs/delegation'
+    description: Delegation mode inherited by steps that do not set delegation.
+    default: inline
+  default_on_blocked:
+    $ref: '#/$defs/onBlocked'
+    description: Action inherited by steps that do not set on_blocked.
+    default: ask_user
+  default_invocation:
+    $ref: '#/$defs/invocation'
+    description: Invocation mode inherited by bindings that do not set invocation.
+    default: compose
+  model:
+    $ref: '#/$defs/model'
+    description: Workflow-level model intent; host_default asks the host for its configured model.
+    default: host_default
+  reasoning_effort:
+    $ref: '#/$defs/reasoningEffort'
+    description: Workflow-level reasoning intent; host_default asks the host for its configured effort.
+    default: host_default
+  steps:
+    type: array
+    minItems: 1
+    description: Non-empty ordered list of workflow steps.
+    items:
+      $ref: '#/$defs/step'
+    examples:
+      - id: first-step
+        execution: sequential
+        completion: all_required
+        on_success: complete
+        skills:
+          - name: example-skill
+            role: primary
+
+$defs:
+  nonEmptyId:
+    type: string
+    minLength: 1
+    description: Non-empty recipe identifier; uniqueness and cross references are semantic checks.
+  projectRelativePath:
+    type: string
+    minLength: 1
+    pattern: '^(?!/)(?![A-Za-z]:).+$'
+    description: Non-empty path intended to be relative to the project root.
+  artifactId:
+    $ref: '#/$defs/nonEmptyId'
+  model:
+    type: string
+    minLength: 1
+    description: >-
+      Model intent. Use inherit or host_default, or a non-empty model value
+      supported by the current host; this schema intentionally does not
+      enumerate host-specific model names.
+    examples:
+      - host_default
+      - inherit
+      - gpt-5.6-sol
+  reasoningEffort:
+    type: string
+    minLength: 1
+    description: >-
+      Reasoning intent. Use inherit or host_default, or a non-empty reasoning
+      value supported by the current host; this schema intentionally does not
+      enumerate host-specific values.
+    examples:
+      - host_default
+      - inherit
+      - high
+  delegation:
+    type: string
+    enum:
+      - inline
+      - subagent
+      - auto
+    description: >-
+      How the orchestrator should delegate work: inline in the current agent,
+      to a subagent, or automatically according to host policy.
+  onBlocked:
+    type: string
+    enum:
+      - ask_user
+      - stop
+    description: Action when a required step or binding is blocked.
+  invocation:
+    type: string
+    enum:
+      - compose
+      - user_explicit
+      - host_permitted
+    description: >-
+      How a binding is invoked: compose its local Skill in the parent context,
+      require explicit user invocation, or use a host-proven capability.
+  execution:
+    type: string
+    enum:
+      - sequential
+      - parallel
+    description: Whether bindings run in list order or concurrently when supported.
+  completion:
+    type: string
+    enum:
+      - all_required
+      - any_success
+    description: Condition under which the step is considered complete.
+  role:
+    type: string
+    enum:
+      - primary
+      - supporting
+      - review
+      - fallback
+    description: Responsibility label for a binding; it does not select a methodology.
+  required:
+    type: boolean
+    default: true
+    description: Whether this binding must succeed for step completion or can be skipped.
+  onExists:
+    type: string
+    enum:
+      - fail
+      - overwrite
+      - version
+    default: fail
+    description: Collision policy when the declared artifact output already exists.
+  step:
+    type: object
+    additionalProperties: false
+    required:
+      - id
+      - execution
+      - completion
+      - on_success
+      - skills
+    properties:
+      id:
+        $ref: '#/$defs/nonEmptyId'
+        description: Unique identifier for this step.
+      execution:
+        $ref: '#/$defs/execution'
+      completion:
+        $ref: '#/$defs/completion'
+      model:
+        $ref: '#/$defs/model'
+        description: Optional step-level model intent overriding the workflow value.
+      reasoning_effort:
+        $ref: '#/$defs/reasoningEffort'
+        description: Optional step-level reasoning intent overriding the workflow value.
+      delegation:
+        $ref: '#/$defs/delegation'
+        description: Optional delegation mode overriding the workflow default.
+      inputs:
+        type: array
+        items:
+          $ref: '#/$defs/artifactId'
+        uniqueItems: true
+        default: []
+        description: Optional registry artifact identifiers consumed by this step.
+      outputs:
+        type: array
+        items:
+          $ref: '#/$defs/artifactId'
+        uniqueItems: true
+        default: []
+        description: Optional registry artifact identifiers produced by this step.
+      on_success:
+        anyOf:
+          - $ref: '#/$defs/nonEmptyId'
+          - const: complete
+        description: Later step identifier or complete; ordering and reachability are semantic checks.
+      on_blocked:
+        $ref: '#/$defs/onBlocked'
+        description: Optional action overriding the workflow default when this step blocks.
+      skills:
+        type: array
+        minItems: 1
+        description: Non-empty ordered list of Skill bindings.
+        items:
+          $ref: '#/$defs/binding'
+    examples:
+      - id: example-step
+        execution: sequential
+        completion: all_required
+        on_success: complete
+        skills:
+          - name: example-primary
+            role: primary
+  binding:
+    type: object
+    additionalProperties: false
+    required:
+      - name
+      - role
+    properties:
+      name:
+        $ref: '#/$defs/nonEmptyId'
+        description: Exact local Skill name from the Skill frontmatter.
+      role:
+        $ref: '#/$defs/role'
+      invocation:
+        $ref: '#/$defs/invocation'
+        description: Optional invocation mode overriding default_invocation.
+      required:
+        $ref: '#/$defs/required'
+      model:
+        $ref: '#/$defs/model'
+        description: Optional binding-level model intent; highest precedence.
+      reasoning_effort:
+        $ref: '#/$defs/reasoningEffort'
+        description: Optional binding-level reasoning intent; highest precedence.
+      output_file:
+        $ref: '#/$defs/projectRelativePath'
+        description: Optional expected project-relative output path; it is not proof of output.
+      artifact:
+        $ref: '#/$defs/artifactId'
+        description: Registry artifact owned by this binding; required when output_file is present.
+      on_exists:
+        $ref: '#/$defs/onExists'
+        description: Optional output collision policy; defaults to fail.
+    allOf:
+      - if:
+          required:
+            - output_file
+        then:
+          required:
+            - artifact
+    examples:
+      - name: example-primary
+        role: primary
+        invocation: compose
+        artifact: result-note
+        output_file: .workflow/artifacts/result-note.md
+        on_exists: version

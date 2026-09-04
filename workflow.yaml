@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./workflow.schema.yaml
 # Recipe data only: core Skills do not depend on these named methodologies.
 id: grill-me-superpowers-trial
 artifact_root: .workflow/artifacts

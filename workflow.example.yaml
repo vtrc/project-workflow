@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./workflow.schema.yaml
 # Portable recipe template. Replace the placeholder Skill names with local
 # Skills installed in the consuming project; no generated artifacts are needed
 # before the workflow starts.
