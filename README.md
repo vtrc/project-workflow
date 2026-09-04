@@ -1,73 +1,182 @@
-# Flujo personal basado en YAML
+# Project Workflow
 
 **[Read this in English](README.en.md)**
 
-Este repositorio es un framework de workflow basado en instrucciones para clientes que implementan el estándar Agent Skills. Ofrece un único punto de entrada lógico y permite declarar en `workflow.yaml` qué Skills se componen, en qué orden y qué entregables persistentes producen. `$project-workflow` es el ejemplo de invocación estilo Codex; otros clientes compatibles usan su mecanismo nativo. No es una aplicación ni incluye Skills de terceros.
+Cuando una tarea requiere varias instrucciones, es fácil perder el orden,
+pasar mal los resultados o repetir pasos. Project Workflow resuelve ese
+problema convirtiendo Skills ya existentes en un flujo definido. Una Skill es
+un conjunto reutilizable de instrucciones que indica a un agente de IA cómo
+realizar una tarea. Tú aportas Skills locales o de terceros que ya existan; no
+necesitas crearlas ni reescribirlas: basta con tenerlas disponibles y
+declararlas en `workflow.yaml`. Ese archivo define en qué orden aplicarlas,
+qué entradas reciben y qué salidas o artefactos producen. Este repositorio
+aporta las instrucciones para componerlas y el resultado es un flujo
+coordinado con sus artefactos.
 
-## Ruta rápida
+El cliente compatible carga y aplica las instrucciones; este repositorio no
+añade un runtime que ejecute procesos por su cuenta.
 
-1. Clona este repositorio en un proyecto con un cliente compatible con el estándar Agent Skills y Skills locales.
-2. Copia [`workflow.example.yaml`](workflow.example.yaml) a `workflow.yaml` o adapta la receta existente.
-3. Instala por separado las Skills que nombre la receta. La receta de ejemplo requiere `grilling` y `writing-plans`; no vienen incluidas.
-4. Ejecuta el punto de entrada mediante el mecanismo nativo de tu cliente. En clientes estilo Codex:
+## 1. Qué es
 
-   ```text
-   $project-workflow
-   Diseña un flujo sencillo de onboarding para mi proyecto.
-   ```
+El proyecto ofrece un punto de entrada (`project-workflow`) y un orquestador
+(`workflow-orchestrator`) para seguir una receta YAML. La receta es la fuente
+de verdad: no elige Skills automáticamente ni inventa etapas. Puedes usar las
+Skills de este repositorio, Skills propias o Skills publicadas por terceros,
+siempre que el cliente pueda descubrirlas.
 
-5. Revisa el estado y los artefactos generados en `.workflow/`.
-
-## Arquitectura
+## 2. Cómo funciona
 
 ```text
-Codex example: $project-workflow → workflow.yaml → workflow-orchestrator → .workflow/
-   entrada             receta          composición             estado y entregables
+Skills existentes (locales o de terceros)
+        ↓
+workflow.yaml define orden, entradas y salidas
+        ↓
+project-workflow compone las Skills en el cliente
+        ↓
+Flujo completado + artefactos en .workflow/
 ```
 
-| Componente | Responsabilidad |
-| --- | --- |
-| [`workflow.yaml`](workflow.yaml) | Fuente de verdad para pasos, bindings, transiciones y artefactos. |
-| [`workflow.schema.yaml`](workflow.schema.yaml) | Schema JSON Schema Draft 2020-12 para validación estructural y autocompletado opcional. |
-| [`project-workflow`](.agents/skills/project-workflow/SKILL.md) | Punto de entrada: valida la receta, persiste el estado y sigue las transiciones. |
-| [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md) | Contrato neutral para componer Skills y gestionar handoffs. |
-| `.agents/skills/<name>/SKILL.md` | Fuente canónica de la Skill local; el adaptador puede mapearla a la ruta nativa del cliente. |
-| `.workflow/` | Estado de ejecución y artefactos generados; no es código fuente. |
+El usuario activa solo la Skill de entrada mediante el mecanismo nativo de su
+cliente. `$project-workflow` es únicamente un ejemplo de invocación estilo
+Codex; no es un comando universal. No hay que invocar manualmente las Skills
+intermedias: la Skill de entrada las compone en el contexto activo del cliente.
 
-`compose` aplica una Skill local en el contexto activo del host; no inicia otro host independiente. Cada binding persiste su resultado antes de que el siguiente lo consuma.
+## 3. Ejemplo mínimo completo
 
-## Configuración
-
-Empieza con [`workflow.example.yaml`](workflow.example.yaml). La receta debe definir una lista ordenada de pasos y bindings; cada binding referencia una Skill local y un artefacto:
+Este es un `workflow.yaml` completo y válido según el schema incluido. Sustituye
+`my-clarification-skill` y `my-planning-skill` por Skills instaladas en tu
+proyecto; sus nombres deben coincidir exactamente con el campo `name` de su
+`SKILL.md`.
 
 ```yaml
-skills:
-  - name: my-local-skill       # nombre exacto del frontmatter de SKILL.md
-    role: primary
-    invocation: compose
-    artifact: result-note
-    output_file: .workflow/artifacts/result-note.md
-    on_exists: version         # fail, overwrite o version
+# yaml-language-server: $schema=./workflow.schema.yaml
+id: my-personal-workflow
+artifact_root: .workflow/artifacts
+default_delegation: inline
+default_on_blocked: ask_user
+default_invocation: compose
+model: host_default
+reasoning_effort: host_default
+
+steps:
+  - id: first-step
+    execution: sequential
+    completion: all_required
+    delegation: inline
+    inputs: [user-request]
+    outputs: [first-output]
+    on_success: second-step
+    on_blocked: ask_user
+    skills:
+      - name: my-clarification-skill
+        role: primary
+        invocation: compose
+        artifact: first-output
+        output_file: .workflow/artifacts/first-output.md
+        on_exists: version
+
+  - id: second-step
+    execution: sequential
+    completion: all_required
+    delegation: inline
+    inputs: [first-output]
+    outputs: [final-output]
+    on_success: complete
+    on_blocked: ask_user
+    skills:
+      - name: my-planning-skill
+        role: primary
+        invocation: compose
+        artifact: final-output
+        output_file: .workflow/artifacts/final-output.md
+        on_exists: version
 ```
 
-Puntos clave:
+`user-request` representa la solicitud inicial registrada por el cliente; los
+artefactos producidos por un paso pueden ser entradas de otro paso. Los campos
+`model`, `reasoning_effort`, `delegation` y `execution` son intenciones que el
+adaptador del cliente interpreta, no comandos universales.
 
-- La fuente canónica de la Skill debe existir en `.agents/skills/<name>/SKILL.md` y su frontmatter `name` debe coincidir; el adaptador del cliente puede descubrirla desde su ruta nativa mediante mapeo o configuración.
-- `inputs` solo debe consumir artefactos anteriores que estén `ready`.
-- `on_success` enlaza con un paso posterior o con `complete`; no inventa trabajo adicional.
-- Define cada artefacto una sola vez y conserva su trazabilidad.
+## 4. Instalación y primer uso
 
-Consulta el [esquema de receta](.agents/skills/workflow-orchestrator/references/recipe-schema.md), el [contrato de artefactos](.agents/skills/workflow-orchestrator/references/artifact-contract.md) y el [contrato de delegación](.agents/skills/workflow-orchestrator/references/delegation-contract.md) para los detalles completos.
+1. Clona este repositorio o copia sus Skills y referencias al proyecto que
+   quieras automatizar.
+2. Copia [`workflow.example.yaml`](workflow.example.yaml) como `workflow.yaml`
+   y adapta sus pasos, Skills y artefactos.
+3. Instala las Skills que hayas nombrado en la receta (consulta la sección
+   siguiente).
+4. Activa `project-workflow` con el mecanismo nativo de tu cliente y escribe la
+   solicitud. El flujo continuará hasta completarse, bloquearse o necesitar una
+   decisión.
+5. Consulta los artefactos generados bajo `.workflow/`.
 
-El [orquestador del workflow](.agents/skills/workflow-orchestrator/SKILL.md) define los límites de capacidades del host, los fallbacks y cómo se interpretan intenciones de receta como `model`, `reasoning_effort`, `delegation` y `execution: parallel`.
+## 5. Instalar las Skills de este framework
 
-[`workflow.schema.yaml`](workflow.schema.yaml) comprueba la estructura, los
-tipos y los enums básicos. La validación semántica —transiciones, readiness y
-lineage de artefactos, elegibilidad de Skills y capacidades del host— sigue
-siendo responsabilidad del orquestador.
+Desde el proyecto consumidor, ejecuta:
 
-## Ejecución y límites
+```text
+npx skills add https://github.com/vtrc/project-workflow \
+  --skill project-workflow \
+  --skill workflow-orchestrator
+```
 
-Al ejecutar la Skill de entrada, el workflow carga y valida la receta, compone cada binding elegible y persiste los handoffs en `.workflow/`. Resuelve cualquier decisión del usuario o binding bloqueado antes de esperar el estado terminal `completed`.
+El comando **no** instala la receta raíz ni las Skills externas que esta
+referencie. Para usar una receta, copia o adapta
+[`workflow.example.yaml`](workflow.example.yaml) a `workflow.yaml` y sigue las
+dependencias declaradas en ella.
 
-`.workflow/` y las Skills externas no se incluyen en el repositorio publicado. Instala las Skills nombradas por tu receta en el host por separado. No hay runtime de aplicación, gestor de paquetes, base de datos ni servicio que instalar: solo necesitas un cliente compatible con el estándar Agent Skills que pueda mapear o configurar la fuente canónica `.agents/skills/` a su ruta nativa y respete los contratos de capacidades y composición. No se promete compatibilidad con clientes que no implementen ese estándar.
+## 6. Skills externas y dependencias
+
+Las Skills nombradas en `workflow.yaml` deben instalarse por separado. La
+receta actual de este repositorio usa `grilling` y `writing-plans` como ejemplos
+de Skills externas: **no son obligatorias**, no vienen incluidas y puedes
+reemplazarlas por Skills locales o de terceros adecuadas a tu trabajo.
+Si ejecutas el `workflow.yaml` incluido sin modificarlo, debes instalarlas o
+sustituirlas en la receta.
+
+Para cada nombre, el cliente debe poder encontrar un `SKILL.md` cuyo frontmatter
+`name` coincida exactamente. `.agents/skills/` es la fuente canónica de Skills
+locales en este repositorio; un adaptador puede mapearla a la ruta nativa de su
+cliente.
+
+## 7. Qué incluye, qué no incluye y límites
+
+Incluye:
+
+- [`project-workflow`](.agents/skills/project-workflow/SKILL.md), la Skill de
+  entrada.
+- [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md), el
+  contrato de coordinación.
+- El ejemplo [`workflow.example.yaml`](workflow.example.yaml), el schema y los
+  contratos técnicos.
+
+No incluye:
+
+- un runtime de aplicación, servidor, MCP, base de datos o gestor de paquetes;
+- Skills externas ni las dependencias de una receta concreta;
+- el estado generado de `.workflow/`.
+
+Es compatible con clientes que implementan el estándar Agent Skills, no con
+clientes arbitrarios. El framework depende de que el cliente descubra y cargue
+las Skills, persista el estado del proyecto y aplique las instrucciones. No
+promete enforcement runtime ni puede obligar a un cliente a ejecutar una Skill
+independiente; `compose` aplica sus instrucciones dentro del contexto activo.
+
+## 8. Referencias técnicas
+
+- [`workflow.schema.yaml`](workflow.schema.yaml): JSON Schema Draft 2020-12 para
+  estructura, tipos y enums básicos.
+- [Referencia del schema de receta](.agents/skills/workflow-orchestrator/references/recipe-schema.md):
+  campos, defaults y límites de la validación estructural y semántica.
+- [Contrato de artefactos](.agents/skills/workflow-orchestrator/references/artifact-contract.md):
+  estado, ownership, colisiones y trazabilidad de artefactos.
+- [Contrato de delegación](.agents/skills/workflow-orchestrator/references/delegation-contract.md):
+  composición y límites de las entregas entre pasos.
+- [Skill de entrada](.agents/skills/project-workflow/SKILL.md) y
+  [orquestador](.agents/skills/workflow-orchestrator/SKILL.md): contratos
+  ejecutables para clientes Agent Skills.
+
+En estas referencias aparecen términos internos como **binding** (la
+declaración de una Skill dentro de un paso), **readiness** (artefacto listo para
+ser consumido) y **lineage** (origen y relación con su productor). No necesitas
+conocerlos para empezar.
