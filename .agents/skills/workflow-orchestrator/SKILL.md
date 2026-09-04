@@ -11,16 +11,20 @@ metadata:
 
 ## Activation Contract
 
-Use when a project work item is governed by `workflow.yaml`. Resolve only the
-recipe's declared local Skills; do not choose a workflow, Skill, or stage.
+Use when a project work item is governed by `workflow.yaml` in an Agent
+Skills-compatible client. Resolve only the recipe's declared local Skills; do
+not choose a workflow, Skill, or stage. The client invokes the project entry
+Skill through its own native mechanism; `$project-workflow` is only a Codex-style
+example.
 
 ## Hard Rules
 
 - Treat the recipe as the sole authority for steps, bindings, models,
   delegation, and transitions. Validate it and the durable work-item state.
+- Check the host/client capability boundary and policy before execution.
 - The parent workflow is the only manual entry point. A `compose` binding reads
   the named local Skill's `SKILL.md` and applies its instructions in the active
-  agent context. This is not a nested host call or black-box execution.
+  host context. This is not an independent host invocation or black-box claim.
 - Resolve composition generically from the recipe name. Do not copy a referenced
   Skill's instructions into this core or special-case a methodology.
 - Compose only an eligible local Skill: its `SKILL.md` exists, its frontmatter
@@ -30,6 +34,21 @@ recipe's declared local Skills; do not choose a workflow, Skill, or stage.
   user conversation needed for this work item. The orchestrator alone updates
   the Work Item Record, Artifact Registry, and transitions.
 
+## Host/client capability boundary
+
+The host must be an Agent Skills-compatible client able to discover and load the
+canonical `.agents/skills/<name>/SKILL.md` source (or map it to a native Skill
+directory), persist project-relative `.workflow/` state and artifacts, and ask
+questions whose later ordinary answers can resume the active work item. The
+recipe's `model`, `reasoning_effort`, `delegation`, and `execution: parallel`
+values are intents interpreted by the host; they are not universal runtime
+commands. Unsupported explicit model or reasoning values block. Parallel work
+may fall back to sequential only when completion semantics remain equivalent;
+`delegation: auto` may fall back inline only when host policy permits. If a
+required capability or policy is unavailable, record the exact failure and
+follow `on_blocked`; never emulate it with a hidden runtime or silently
+substitute a client, Skill, or methodology.
+
 ## Decision Gates
 
 | Condition | Action |
@@ -37,7 +56,7 @@ recipe's declared local Skills; do not choose a workflow, Skill, or stage.
 | `steps` is empty | Ask the user to declare the first ordered step. |
 | Current binding is `compose` | Resolve it, apply its instructions, and retain it until it completes, blocks, or awaits the user. |
 | Current binding is `user_explicit` | Mark it blocked: this opt-out is incompatible with a hands-off recipe. |
-| Current binding is `host_permitted` | Use only a known host capability; otherwise mark it blocked. |
+| Current binding is `host_permitted` | Use only a host capability explicitly proven by the capability boundary above; otherwise mark it blocked. |
 | A composed Skill awaits a user answer | Persist `state: active` and `current.status: awaiting_user`; do not advance. |
 | A required binding blocks | Follow the step's `on_blocked`, or the workflow default. |
 

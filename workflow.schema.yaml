@@ -1,10 +1,12 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: https://example.invalid/workflow.schema.yaml
-title: Codex Agent Skills workflow recipe
+title: Agent Skills workflow recipe
 description: >-
-  Machine-readable structural schema for the project-local workflow.yaml
-  recipe. Semantic orchestration rules remain the responsibility of the
-  workflow orchestrator.
+  Machine-readable structural schema for a project-local workflow.yaml recipe
+  used by Agent Skills-compatible clients. Semantic orchestration rules and
+  host capability checks remain the responsibility of the workflow
+  orchestrator; model and delegation values are host-interpreted intents, not
+  universal runtime commands.
 type: object
 additionalProperties: false
 required:
@@ -42,11 +44,11 @@ properties:
     default: compose
   model:
     $ref: '#/$defs/model'
-    description: Workflow-level model intent; host_default asks the host for its configured model.
+    description: Workflow-level model intent; host_default asks the host for its configured model. The host adapter interprets this value.
     default: host_default
   reasoning_effort:
     $ref: '#/$defs/reasoningEffort'
-    description: Workflow-level reasoning intent; host_default asks the host for its configured effort.
+    description: Workflow-level reasoning intent; host_default asks the host for its configured effort. The host adapter interprets this value.
     default: host_default
   steps:
     type: array
@@ -104,8 +106,9 @@ $defs:
       - subagent
       - auto
     description: >-
-      How the orchestrator should delegate work: inline in the current agent,
-      to a subagent, or automatically according to host policy.
+      Delegation intent for the host adapter: inline in the active context, to a
+      subagent, or automatically according to host policy. These values are not
+      universal runtime commands.
   onBlocked:
     type: string
     enum:
@@ -126,7 +129,7 @@ $defs:
     enum:
       - sequential
       - parallel
-    description: Whether bindings run in list order or concurrently when supported.
+    description: Whether bindings run in list order or concurrently when supported by the host; this is an execution intent, not a universal concurrency command.
   completion:
     type: string
     enum:

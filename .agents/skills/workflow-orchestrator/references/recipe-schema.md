@@ -1,8 +1,12 @@
 # Recipe Schema
 
 `workflow.yaml` is the single ordered recipe. It names concrete Skills only in
-that file; the framework does not choose or supply them. For structural editor
-validation, use the repository's [`workflow.schema.yaml`](../../../../workflow.schema.yaml).
+that file; the framework does not choose or supply them. This contract targets
+clients that implement the Agent Skills standard. This repository uses
+`.agents/skills/` as its canonical local Skill source; a client adapter may map
+it to the client's native Skill directory. For structural editor validation, use the
+repository's [`workflow.schema.yaml`](../../../../workflow.schema.yaml). Host
+requirements and fallback behavior are defined in the [workflow orchestrator](../SKILL.md).
 
 ## Canonical shape
 
@@ -57,8 +61,8 @@ optional key is omitted.
 | `default_delegation` | root | yes | string enum | `inline` (schema metadata) | `inline`, `subagent`, `auto` | Delegation inherited by steps without `delegation`: run in the current agent, use a subagent, or let host policy decide. |
 | `default_on_blocked` | root | yes | string enum | `ask_user` (schema metadata) | `ask_user`, `stop` | Action inherited by steps without `on_blocked` when required work blocks. |
 | `default_invocation` | root | yes | string enum | `compose` (schema metadata) | `compose`, `user_explicit`, `host_permitted` | Invocation inherited by bindings without `invocation`. |
-| `model` | root | yes | non-empty string | `host_default` (schema metadata) | `inherit`, `host_default`, or a model string valid for the host | Workflow-level model intent. The schema deliberately does not invent a host model enum. |
-| `reasoning_effort` | root | yes | non-empty string | `host_default` (schema metadata) | `inherit`, `host_default`, or a reasoning value valid for the host | Workflow-level reasoning intent. The schema deliberately does not invent a host enum. |
+| `model` | root | yes | non-empty string | `host_default` (schema metadata) | `inherit`, `host_default`, or a model string valid for the host | Workflow-level model intent interpreted by the host adapter; not a universal runtime command. The schema deliberately does not invent a host model enum. |
+| `reasoning_effort` | root | yes | non-empty string | `host_default` (schema metadata) | `inherit`, `host_default`, or a reasoning value valid for the host | Workflow-level reasoning intent interpreted by the host adapter; not a universal runtime command. The schema deliberately does not invent a host enum. |
 | `steps` | root | yes | array, `minItems: 1` | — | step objects | Ordered workflow stages. |
 
 The defaults shown as “schema metadata” document the repository's conventional
@@ -82,7 +86,8 @@ explicitly rather than rely on YAML default insertion.
 | `skills` | step | yes | array of binding objects, `minItems: 1` | — | ordered binding objects | Local Skill composition bindings. At least one binding must be required. |
 
 `sequential` and `parallel` describe binding scheduling, not a promise that a
-host can execute parallel work. `primary`, `supporting`, and `review` communicate
+host can execute parallel work. They are execution intents interpreted by the
+host adapter. `primary`, `supporting`, and `review` communicate
 responsibility; `fallback` is eligible only in a sequential step after an earlier
 required non-fallback binding cannot complete.
 
@@ -90,7 +95,7 @@ required non-fallback binding cannot complete.
 
 | Field | Level | Required | Type | Default | Allowed values | Meaning |
 | --- | --- | --- | --- | --- | --- | --- |
-| `name` | binding | yes | non-empty string | — | exact local Skill frontmatter name | Skill to resolve under `.agents/skills/<name>/SKILL.md`. |
+| `name` | binding | yes | non-empty string | — | exact local Skill frontmatter name | Skill to resolve from this repository's `.agents/skills/<name>/SKILL.md` source or its client-adapter mapping. |
 | `role` | binding | yes | string enum | — | `primary`, `supporting`, `review`, `fallback` | Responsibility label; it does not choose a methodology. |
 | `invocation` | binding | no | string enum | inherited from `default_invocation` | `compose`, `user_explicit`, `host_permitted` | How this binding is invoked. |
 | `required` | binding | no | boolean | `true` | `true`, `false` | Required bindings determine step completion and can block; optional bindings may register output but cannot satisfy or block a step. |
@@ -122,18 +127,18 @@ for the current host; the recipe does not enumerate them. Resolve `delegation`
 from step to workflow and `invocation` from binding to `default_invocation`.
 
 `compose` is the recommended default for a hands-off recipe. The parent workflow
-reads the named local Skill's `SKILL.md` and applies it in the active agent
-context with declared ready inputs and output contract. It is not a portable
-host-level nested invocation. A binding is eligible only when its local
-`SKILL.md` exists, its frontmatter name matches, and its `agents/openai.yaml`
-policy does not set `allow_implicit_invocation: false`,
-`allow_model_invocation: false`, or `allow_composition: false`.
+reads the named local Skill's `SKILL.md` and applies it in the active host
+context with declared ready inputs and output contract. It is not an independent
+host invocation. A binding is eligible only when its local `SKILL.md` exists,
+its standard frontmatter name matches, and the host/client policy permits the
+requested implicit, model, and composition behavior.
 
 `user_explicit` deliberately opts out of composition and is incompatible with a
 fully hands-off recipe. `host_permitted` may be used only when a host can prove
 it supports the invocation; the recipe never assumes a universal dispatcher.
-Model and reasoning values record resolved intent; composition cannot switch the
-active model without host support.
+Model, reasoning, and delegation fields similarly record intents for the host
+adapter, not universal runtime commands. Composition cannot switch the active
+model without host support.
 
 ## Output and lifecycle
 
@@ -186,8 +191,8 @@ cannot, by itself, guarantee:
   that the workflow eventually terminates;
 - that referenced artifacts exist in the registry, are `ready`, have valid
   lineage, or match the producing binding's ownership;
-- that a named Skill is installed, has matching frontmatter, or is eligible
-  under its `agents/openai.yaml` invocation policy;
+- that a named Skill is installed, has matching standard frontmatter, or is
+  eligible under the host/client invocation policy;
 - that the host supports the requested model, reasoning effort, parallel
   execution, delegation mode, or invocation capability;
 - that output paths are safe, writable, collision-free, or semantically

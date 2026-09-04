@@ -12,21 +12,24 @@ metadata:
 ## Activation Contract
 
 Use as the user's only explicit entry point to start this project's declared
-workflow. Continue it automatically when the project resume rule identifies a
-direct answer to an active workflow question. Do not invent a process, select an
-undeclared Skill, or replace a task-specific Skill.
+workflow in an Agent Skills-compatible client. The client invokes this Skill
+through its own native mechanism; `$project-workflow` is a Codex-style example,
+not a universal command. Continue it automatically when the project resume rule
+identifies a direct answer to an active workflow question. Do not invent a
+process, select an undeclared Skill, or replace a task-specific Skill.
 
 ## Hard Rules
 
 - Load `workflow.yaml`, `.workflow/work-item.yaml`,
   `.workflow/artifact-registry.yaml`, and the base contracts before action.
+- Check the host/client capability boundary in the [workflow orchestrator](../workflow-orchestrator/SKILL.md) before execution.
 - Validate the full recipe before execution. Do not repair an invalid recipe by
   guessing values or changing order.
 - The user invokes only this Skill. For `compose`, locate the named eligible
   local Skill and apply its `SKILL.md` instructions in this agent context. Never
   ask the user to invoke an intermediate Skill.
-- Composition is not a portable nested host call. Record the applied binding and
-  outcome; do not claim independent host-level execution.
+- Composition applies the selected Skill in the active host context. Record the
+  applied binding and outcome; do not claim an independent host invocation.
 - Persist all state changes and accepted outputs before another binding consumes
   them. Continue automatically until a user decision, block, or completion.
 

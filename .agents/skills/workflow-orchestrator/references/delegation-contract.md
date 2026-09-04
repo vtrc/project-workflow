@@ -30,9 +30,9 @@ is instruction composition, not a portable nested host invocation. Record the
 composed binding and observed outcome; do not claim the host executed an
 independent black-box Skill.
 
-Before composition, require a matching local `SKILL.md` and reject a policy that
-sets `allow_implicit_invocation: false`, `allow_model_invocation: false`, or
-`allow_composition: false`. No policy file means the local Skill uses the normal
+Before composition, require a matching local `SKILL.md` and reject any
+host/client policy that disables implicit invocation, model-based invocation, or
+composition for the binding. When no policy is supplied, use the host's normal
 implicit-composition default.
 
 `user_explicit` is an opt-out for recipes requiring human selection. It blocks a
