@@ -1,131 +1,65 @@
-# YAML-driven personal workflow
+# Flujo personal basado en YAML
 
-This repository is a small, instruction-only workflow framework for Codex-compatible Agent Skills. It gives you one explicit entry point, `$workflow-personal`, and lets a project-local `workflow.yaml` declare which Skills are composed, in what order, and which durable handoffs they produce.
+**[Read this in English](README.en.md)**
 
-It is **not** an application implementation and it does not vendor third-party Skills. Runtime state and the previous registration trial are intentionally kept out of a published clone.
+Este repositorio es un framework de workflow basado en instrucciones para Agent Skills compatibles con Codex. Ofrece un único punto de entrada, `$workflow-personal`, y permite declarar en `workflow.yaml` qué Skills se componen, en qué orden y qué entregables persistentes producen. No es una aplicación ni incluye Skills de terceros.
 
-## Quick path
+## Ruta rápida
 
-1. Clone this repository into a project that supports project-local Agent Skills.
-2. Keep or create `workflow.yaml` from [`workflow.example.yaml`](workflow.example.yaml).
-3. Install or provide the Skills named by your recipe separately; they are not included here.
-4. Invoke the only manual entry point with your request:
+1. Clona este repositorio en un proyecto compatible con Agent Skills locales.
+2. Copia [`workflow.example.yaml`](workflow.example.yaml) a `workflow.yaml` o adapta la receta existente.
+3. Instala por separado las Skills que nombre la receta. La receta de ejemplo requiere `grilling` y `writing-plans`; no vienen incluidas.
+4. Ejecuta el punto de entrada:
 
    ```text
    $workflow-personal
-   Design a small onboarding workflow for my project.
+   Diseña un flujo sencillo de onboarding para mi proyecto.
    ```
 
-5. Inspect the generated state and artifacts under `.workflow/` locally. That directory is ignored and is never part of the package.
+5. Revisa el estado y los artefactos generados en `.workflow/`.
 
-## How it works
+## Arquitectura
 
 ```text
-$workflow-personal
-        │
-        ▼
-workflow.yaml ── validates order, bindings, inputs, outputs, and policy
-        │
-        ▼
-workflow-orchestrator ── composes each eligible local Skill in the active context
-        │
-        ▼
-.workflow/ ── work-item state, artifact registry, and generated handoffs
+$workflow-personal → workflow.yaml → workflow-orchestrator → .workflow/
+   entrada             receta          composición             estado y entregables
 ```
 
-The framework separates **orchestration** from **methodology**:
-
-| Part | Responsibility |
+| Componente | Responsabilidad |
 | --- | --- |
-| [`workflow.yaml`](workflow.yaml) | The ordered recipe and its execution intent. It is the source of truth for steps, bindings, transitions, and artifacts. |
-| [`workflow-personal`](.agents/skills/workflow-personal/SKILL.md) | The only user-facing entry point. It loads and validates the recipe, persists state, composes bindings, and follows transitions. |
-| [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md) | The neutral execution contract and recipe/artifact rules. It does not select a methodology. |
-| `.agents/skills/<name>/SKILL.md` | A project-local Skill selected by the recipe. Its frontmatter name must match the binding. |
-| `.workflow/` | Generated work-item state, artifact registry, and outputs. It is runtime data, not source code. |
+| [`workflow.yaml`](workflow.yaml) | Fuente de verdad para pasos, bindings, transiciones y artefactos. |
+| [`workflow-personal`](.agents/skills/workflow-personal/SKILL.md) | Punto de entrada: valida la receta, persiste el estado y sigue las transiciones. |
+| [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md) | Contrato neutral para componer Skills y gestionar handoffs. |
+| `.agents/skills/<name>/SKILL.md` | Skill local seleccionada por la receta. |
+| `.workflow/` | Estado de ejecución y artefactos generados; no es código fuente. |
 
-`compose` means that the parent workflow reads and applies a named local Skill in the current agent context. It is not an independent nested host invocation. The orchestrator records the binding and outcome before the next binding consumes its output.
+`compose` aplica una Skill local en el contexto del agente actual; no inicia otro host independiente. Cada binding persiste su resultado antes de que el siguiente lo consuma.
 
-## Configure `workflow.yaml`
+## Configuración
 
-Start with [`workflow.example.yaml`](workflow.example.yaml), then replace the placeholder Skill names and artifact identifiers. The current [`workflow.yaml`](workflow.yaml) is a concrete trial recipe and references Skills that are deliberately excluded from this repository.
-
-### Root settings
-
-| Field | Meaning |
-| --- | --- |
-| `id` | Stable recipe identifier. |
-| `artifact_root` | Project-relative directory for generated handoffs. |
-| `default_delegation` | `inline`, `subagent`, or `auto`; used when a step does not override it. |
-| `default_on_blocked` | `ask_user` or `stop`. |
-| `default_invocation` | Usually `compose` for a hands-off workflow. |
-| `model`, `reasoning_effort` | `inherit`, `host_default`, or a value supported by the host. |
-| `steps` | A non-empty ordered list of workflow steps. |
-
-### Step and binding rules
-
-Each step declares `id`, `execution`, `completion`, `on_success`, and at least one Skill binding. A binding normally contains:
+Empieza con [`workflow.example.yaml`](workflow.example.yaml). La receta debe definir una lista ordenada de pasos y bindings; cada binding referencia una Skill local y un artefacto:
 
 ```yaml
 skills:
-  - name: my-local-skill       # exact local SKILL.md frontmatter name
-    role: primary              # primary, supporting, review, or fallback
+  - name: my-local-skill       # nombre exacto del frontmatter de SKILL.md
+    role: primary
     invocation: compose
-    artifact: result-note      # logical ID in the runtime registry
+    artifact: result-note
     output_file: .workflow/artifacts/result-note.md
-    on_exists: version         # fail, overwrite, or version
+    on_exists: version         # fail, overwrite o version
 ```
 
-Before composition, the local Skill must:
+Puntos clave:
 
-- exist at `.agents/skills/<name>/SKILL.md`;
-- expose matching frontmatter `name`; and
-- not opt out of implicit, model, or composition invocation in `agents/openai.yaml`.
+- La Skill debe existir en `.agents/skills/<name>/SKILL.md` y su frontmatter `name` debe coincidir.
+- `inputs` solo debe consumir artefactos anteriores que estén `ready`.
+- `on_success` enlaza con un paso posterior o con `complete`; no inventa trabajo adicional.
+- Define cada artefacto una sola vez y conserva su trazabilidad.
 
-Inputs must identify ready artifacts from earlier bindings. `on_success` may name only a later step or `complete`; transitions do not infer extra work. Keep one owner per artifact and persist the handoff before a later binding reads it.
+Consulta el [esquema de receta](.agents/skills/workflow-orchestrator/references/recipe-schema.md), el [contrato de artefactos](.agents/skills/workflow-orchestrator/references/artifact-contract.md) y el [contrato de delegación](.agents/skills/workflow-orchestrator/references/delegation-contract.md) para los detalles completos.
 
-## Adapting the recipe
+## Ejecución y límites
 
-1. Copy [`workflow.example.yaml`](workflow.example.yaml) to `workflow.yaml` for a new workflow, or edit the existing recipe.
-2. Give every step a unique ID and keep the steps in execution order.
-3. Replace `my-*-skill` with the exact names of Skills available in your clone or host.
-4. Define each handoff once with an `artifact` ID and, when it is file-backed, an `output_file` under `.workflow/`.
-5. Set `inputs` to artifacts that are already `ready`; do not use conversational summaries as a substitute.
-6. Choose `on_exists: fail` for strict collision detection, `overwrite` only for an owner-controlled replacement, or `version` when each run should preserve a distinct artifact.
-7. Run `$workflow-personal` and resolve any user decision or blocked binding before expecting a terminal `completed` state.
+Al ejecutar `$workflow-personal`, el workflow carga y valida la receta, compone cada binding elegible y persiste los handoffs en `.workflow/`. Resuelve cualquier decisión del usuario o binding bloqueado antes de esperar el estado terminal `completed`.
 
-The recipe schema and lifecycle details are documented in the local references:
-
-- [`recipe-schema.md`](.agents/skills/workflow-orchestrator/references/recipe-schema.md)
-- [`artifact-contract.md`](.agents/skills/workflow-orchestrator/references/artifact-contract.md)
-- [`delegation-contract.md`](.agents/skills/workflow-orchestrator/references/delegation-contract.md)
-
-## External Skills and dependencies
-
-The repository contains only the workflow framework and its contracts. These Skills are intentionally **not** packaged:
-
-- `grill-me`
-- `grilling`
-- `writing-plans`
-
-The concrete trial recipe names `grilling` and `writing-plans`; install equivalent Skills separately or change the recipe to names available in your environment. `grill-me` is also excluded because it is an external entry-point adapter, not a framework dependency.
-
-There is no application runtime, package manager lockfile, database, or service to install. The practical prerequisite is an Agent Skills-capable host that can read `.agents/skills/` and honor the composition contract.
-
-## What is intentionally ignored
-
-`.gitignore` excludes:
-
-- all `.workflow/` state and generated artifacts, including the registration-trial result;
-- local `outputs/` and `work/` scratch directories;
-- the excluded external Skills listed above; and
-- editor, OS, log, and temporary files.
-
-Do not commit credentials, host-specific configuration, or generated work-item data. Keep portable configuration in `workflow.yaml` or the example template.
-
-## Repository checklist
-
-- [ ] `workflow.yaml` names only Skills available to the target clone.
-- [ ] Every binding has a clear role, input lineage, and output owner.
-- [ ] Generated `.workflow/` state is absent from the published package.
-- [ ] External Skills are installed independently and are not copied into this repository.
-
+`.workflow/` y las Skills externas no se incluyen en el repositorio publicado. Instala las Skills nombradas por tu receta en el host por separado. No hay runtime de aplicación, gestor de paquetes, base de datos ni servicio que instalar: solo necesitas un host compatible con Agent Skills que respete `.agents/skills/` y el contrato de composición.
