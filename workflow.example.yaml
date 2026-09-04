@@ -1,0 +1,43 @@
+# Portable recipe template. Replace the placeholder Skill names with local
+# Skills installed in the consuming project; no generated artifacts are needed
+# before the workflow starts.
+id: my-personal-workflow
+artifact_root: .workflow/artifacts
+default_delegation: inline
+default_on_blocked: ask_user
+default_invocation: compose
+model: host_default
+reasoning_effort: host_default
+
+steps:
+  - id: first-step
+    execution: sequential
+    completion: all_required
+    delegation: inline
+    inputs: [user-request]
+    outputs: [first-output]
+    on_success: second-step
+    on_blocked: ask_user
+    skills:
+      - name: my-clarification-skill
+        role: primary
+        invocation: compose
+        artifact: first-output
+        output_file: .workflow/artifacts/first-output.md
+        on_exists: version
+
+  - id: second-step
+    execution: sequential
+    completion: all_required
+    delegation: inline
+    inputs: [first-output]
+    outputs: [final-output]
+    on_success: complete
+    on_blocked: ask_user
+    skills:
+      - name: my-planning-skill
+        role: primary
+        invocation: compose
+        artifact: final-output
+        output_file: .workflow/artifacts/final-output.md
+        on_exists: version

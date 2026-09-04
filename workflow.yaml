@@ -1,0 +1,45 @@
+# Recipe data only: core Skills do not depend on these named methodologies.
+id: grill-me-superpowers-trial
+artifact_root: .workflow/artifacts
+default_delegation: inline
+default_on_blocked: ask_user
+default_invocation: compose
+model: host_default
+reasoning_effort: host_default
+
+# Start once with $workflow-personal. `compose` means the parent workflow reads
+# and applies the named Skill's instructions; the user never invokes these steps.
+steps:
+  - id: clarify-with-grilling
+    execution: sequential
+    completion: all_required
+    delegation: inline
+    inputs: [user-request]
+    outputs: [clarified-brief]
+    on_success: plan-with-writing-plans
+    on_blocked: ask_user
+    skills:
+      - name: grilling
+        role: primary
+        invocation: compose
+        artifact: clarified-brief
+        output_file: .workflow/artifacts/clarified-brief.md
+        on_exists: version
+
+  - id: plan-with-writing-plans
+    execution: sequential
+    completion: all_required
+    delegation: inline
+    inputs: [clarified-brief]
+    outputs: [implementation-plan]
+    on_success: complete
+    on_blocked: ask_user
+    skills:
+      - name: writing-plans
+        role: primary
+        invocation: compose
+        model: inherit
+        reasoning_effort: inherit
+        artifact: implementation-plan
+        output_file: .workflow/artifacts/implementation-plan.md
+        on_exists: version

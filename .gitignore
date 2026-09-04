@@ -1,0 +1,22 @@
+# Runtime state and generated workflow artifacts (including trial outputs).
+.workflow/
+
+# Local scratch directories used during workflow experiments.
+outputs/
+work/
+registro-flow/
+registration-test/
+
+# External Skills are installed separately and are not vendored in this repo.
+.agents/skills/grill-me/
+.agents/skills/grilling/
+.agents/skills/writing-plans/
+
+# OS, editor, logs, and temporary files.
+.DS_Store
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
