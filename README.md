@@ -162,7 +162,7 @@ cliente.
 Desde el proyecto donde quieres usar el flujo, ejecuta:
 
 ```text
-npx skills add https://github.com/vtrc/project-workflow --skill project-workflow workflow-orchestrator
+npx skills add https://github.com/vtrc/project-workflow --skill project-workflow workflow-orchestrator skill-discovery
 ```
 
 El comando no instala `workflow.yaml`, la receta raíz ni las Skills externas
