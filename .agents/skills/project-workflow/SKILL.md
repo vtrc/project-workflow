@@ -58,9 +58,12 @@ The handoff must describe this exact user-controlled flow:
 
 1. Open the Studio handoff URL. The relative hint only identifies the expected
    recipe; it does not grant the site access to a local file.
-2. Select `workflow.yaml` (or the hinted relative file) from the user's own
-   machine with the browser file picker. The user still chooses the file or
-   folder and the browser keeps that selection private.
+2. Press **Abrir workflow**. In browsers with the File System Access API,
+   select the Project Workflow repository root. The Studio resolves
+   `workflow.yaml` (or the hinted relative file) beneath that root and creates
+   or reuses `.workflow/studio-history/` there. A file handle alone cannot
+   expose its parent directory, so this folder selection is required for
+   persistent history.
 3. Edit the recipe visually.
 4. Press **Guardar cambios** to write to that same file when the browser grants
    File System Access API write permission.
@@ -70,7 +73,9 @@ that a file was opened or saved without the user's picker selection and the
 browser's explicit permission. This boundary prevents a public site from
 reading arbitrary local paths or receiving recipe contents without the user's
 action. If the browser lacks direct write support, tell the user that the
-Studio can still import the YAML and download an edited copy.
+   Studio can still import the YAML and download an edited copy. If the browser
+   lacks directory access, **Abrir workflow** falls back to the file picker;
+   history remains session-only.
 
 ## Decision Gates
 
