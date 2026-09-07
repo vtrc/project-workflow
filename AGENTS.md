@@ -35,7 +35,7 @@ context and follows the recipe transitions automatically.
 
 ## Source of truth
 
-- `workflow.yaml` is the source of truth for ordered steps, Skill bindings,
+- `.workflow/workflow.yaml` is the source of truth for ordered steps, Skill bindings,
   inputs, outputs, model intent, delegation, collision policy, and transitions.
 - `model`, `reasoning_effort`, `delegation`, and `execution` values are recipe
   intents interpreted by the host adapter; they are not universal runtime
@@ -49,7 +49,7 @@ context and follows the recipe transitions automatically.
 
 For a new request:
 
-1. Load and validate `workflow.yaml` and the referenced local Skill files.
+1. Load and validate `.workflow/workflow.yaml` and the referenced local Skill files.
 2. Initialize `.workflow/work-item.yaml` and
    `.workflow/artifact-registry.yaml` when they do not exist.
 3. Register the user request as the initial ready input.

@@ -7,12 +7,12 @@
 Imagine asking: **“Design a registration flow for my project.”** You already
 have two Skills available: `grilling` asks questions to clarify what you need,
 and `writing-plans` turns the answers into a plan. Project Workflow connects
-those Skills through a `workflow.yaml` recipe: it first saves the answers and
+those Skills through a `.workflow/workflow.yaml` recipe: it first saves the answers and
 then gives them to the planning Skill. You get a coordinated workflow and its
 artifacts without invoking each Skill by hand.
 
 You do not need to create or rewrite the Skills. Just make existing local or
-third-party Skills available and declare them in `workflow.yaml`. This
+third-party Skills available and declare them in `.workflow/workflow.yaml`. This
 repository provides the instructions that connect those pieces; it does not add
 a program that runs on its own.
 
@@ -21,7 +21,7 @@ a program that runs on its own.
 ```text
 Request: “Design a registration flow”
         ↓
-workflow.yaml
+.workflow/workflow.yaml
         ↓
 Skill 1: grilling
         ↓
@@ -43,7 +43,7 @@ with local or third-party Skills that do the work you need.
 A Skill is a reusable set of instructions that tells an AI agent how to perform
 a specific task. It can live in your project or come from a third party.
 
-### 2. `workflow.yaml`
+### 2. `.workflow/workflow.yaml`
 
 This is the workflow recipe. It says which Skills to use, in what order, what
 information each one receives, what results it produces, and which step comes
@@ -52,7 +52,7 @@ pass to another step.
 
 ### 3. Project Workflow
 
-This is the project/framework in this repository. It reads `workflow.yaml` and
+This is the project/framework in this repository. It reads `.workflow/workflow.yaml` and
 composes the Skills you already have through the client you are using. The
 client loads and applies their instructions; Project Workflow coordinates the
 sequence and artifacts.
@@ -79,7 +79,7 @@ section required for a valid recipe. `grilling` and `writing-plans` must be
 available in your client if you run this example unchanged.
 
 ```yaml
-# yaml-language-server: $schema=./workflow.schema.yaml
+# yaml-language-server: $schema=../workflow.schema.yaml
 id: register-design-workflow
 artifact_root: .workflow/artifacts
 default_delegation: inline
@@ -149,7 +149,7 @@ which uses placeholder Skill names.
 ```text
 git clone https://github.com/vtrc/project-workflow.git
 cd project-workflow
-cp workflow.example.yaml workflow.yaml
+mkdir -p .workflow && cp workflow.example.yaml .workflow/workflow.yaml
 ```
 
 Then replace the placeholder Skills with Skills available in your project and
@@ -163,7 +163,7 @@ From the project where you want to use the workflow, run:
 npx skills add https://github.com/vtrc/project-workflow --skill project-workflow workflow-orchestrator
 ```
 
-The command does not install `workflow.yaml`, the root recipe, or any external
+The command does not install the canonical `.workflow/workflow.yaml` recipe, or any external
 Skills it references. To create the recipe, copy or adapt
 [`workflow.example.yaml`](workflow.example.yaml) and follow the dependencies
 you declare.
@@ -174,7 +174,7 @@ The user activates only the `project-workflow` entry Skill through the client's
 native mechanism. `$project-workflow` is only a Codex-style invocation example;
 it is not a universal command. Do not manually invoke `grilling`,
 `writing-plans`, or other intermediate Skills: the entry Skill composes them in
-the order declared by `workflow.yaml`.
+the order declared by `.workflow/workflow.yaml`.
 
 Generated artifacts are normally saved under `.workflow/`. That directory is
 working state, not source code published by this repository.
@@ -194,7 +194,7 @@ working state, not source code published by this repository.
 
 - external Skills such as `grilling` or `writing-plans`;
 - an application runtime, server, MCP, database, or package manager;
-- your project's `workflow.yaml` or generated `.workflow/` state.
+- your project's `.workflow/workflow.yaml` or generated `.workflow/` state.
 
 This framework targets clients that implement the **Agent Skills** standard: a
 format and set of rules for a client to discover and load Skills. `.agents/skills/`

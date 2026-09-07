@@ -8,14 +8,30 @@ not a Project Workflow runtime, CLI, background process, or service. Studio
 never discovers Skill directories itself and never receives Skill content.
 
 Write the catalog only after the host has access to the project root selected by
-the user. The output path is `.workflow/skill-catalog.json`. `.workflow/` is
-runtime output and remains ignored unless the target repository already has an
-explicit policy to track it.
+the user. The output path is `.workflow/skill-catalog.json`. The canonical
+`.workflow/workflow.yaml` is tracked by this repository; generated catalog and
+history files remain ignored under the repository policy.
+
+## Recipe bootstrap
+
+Before catalog discovery, check whether the authorized project root contains
+`.workflow/workflow.yaml`. When it is absent and the host has permission to
+create that canonical file, atomically create the exact contents of the
+reference [`workflow.yaml`](workflow.yaml). The create must be exclusive:
+never overwrite, replace, or merge with an existing `.workflow/workflow.yaml`.
+
+The minimal recipe deliberately has `steps: []`. It is schema-valid but not
+ready to execute; Project Workflow asks the user to declare the first step. Do
+not derive a first step from the catalog, choose a Skill, or write a placeholder
+binding. If creation is unavailable or fails, return the typed bootstrap
+failure; preflight remains non-blocking, but an absent recipe still prevents a
+later workflow execution.
 
 ## Host discovery contract
 
 1. Discover direct child directories of the canonical project root
-   `.agents/skills/`. A direct child is eligible only when it contains a regular
+   `.agents/skills/`, applying the internal Project Workflow Skill exclusions
+   below first. A direct child is eligible only when it contains a regular
    `SKILL.md` with parseable frontmatter and a non-empty `name`. Include direct
    children with a missing or invalid `SKILL.md` as `invalid`; they are never
    eligible for composition.
@@ -36,6 +52,21 @@ explicit policy to track it.
    `contentHash` to the lowercase 64-character digest of `SKILL.md`; otherwise
    omit it. Hashes are change hints, not an execution authority.
 
+## Internal Project Workflow Skill exclusions
+
+Before parsing frontmatter and before sorting, exclude these exact direct-child
+directories from the project collection:
+
+- `.agents/skills/project-workflow`
+- `.agents/skills/skill-discovery`
+- `.agents/skills/workflow-orchestrator`
+
+They are internal Project Workflow coordination Skills. Never include them in
+the manifest, including as `invalid` entries. Match the canonical direct-child
+directory, not a frontmatter `name`, so a third-party Skill installed in any
+other direct child directory remains discoverable. This rule affects only the
+project collection; global Skill discovery remains adapter-owned.
+
 ## Stable manifest schema (version 1)
 
 ```json
@@ -46,11 +77,11 @@ explicit policy to track it.
   "globalRoots": [{ "id": "host-global", "status": "available" }],
   "projectSkills": [
     {
-      "name": "project-workflow",
-      "description": "Compose local Skills through workflow.yaml.",
+      "name": "writing-plans",
+      "description": "Create an implementation plan.",
       "version": "1.2",
       "origin": "project",
-      "relativePath": ".agents/skills/project-workflow",
+      "relativePath": ".agents/skills/writing-plans",
       "status": "valid"
     }
   ],
@@ -92,7 +123,7 @@ the previous catalog and report the failure; never leave a partial manifest.
 
 Skill Discovery generates this file only in an authorized host context. It may
 run from an explicit `skill-discovery` request or as Project Workflow's mandatory
-same-context preflight; the latter is not a `workflow.yaml` step. A preflight
+same-context preflight; the latter is not a `.workflow/workflow.yaml` step. A preflight
 publication failure preserves the previous catalog, returns a typed warning, and
 does not block the YAML workflow. The Studio action can only reload the existing
 manifest and explain that regeneration occurs through Skill Discovery.

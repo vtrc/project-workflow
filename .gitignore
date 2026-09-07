@@ -1,5 +1,7 @@
-# Runtime state and generated workflow artifacts (including trial outputs).
-.workflow/
+# Canonical recipe is tracked; generated catalog, history, and runtime state stay local.
+/.workflow/*
+!/.workflow/
+!/.workflow/workflow.yaml
 
 # Local scratch directories used during workflow experiments.
 outputs/

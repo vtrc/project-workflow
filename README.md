@@ -7,12 +7,12 @@
 Imagina que pides: **«Diseña un registro para mi proyecto»**. Ya tienes dos
 Skills disponibles: `grilling` hace preguntas para aclarar qué necesitas y
 `writing-plans` convierte las respuestas en un plan. Project Workflow conecta
-esas Skills mediante una receta `workflow.yaml`: primero guarda el resultado de
+esas Skills mediante una receta `.workflow/workflow.yaml`: primero guarda el resultado de
 las preguntas y después se lo entrega a la Skill de planificación. Obtienes un
 flujo coordinado y sus artefactos, sin tener que invocar cada Skill a mano.
 
 No necesitas crear ni reescribir las Skills. Basta con tener Skills locales o
-de terceros disponibles y declararlas en `workflow.yaml`. Este repositorio
+de terceros disponibles y declararlas en `.workflow/workflow.yaml`. Este repositorio
 aporta las instrucciones que conectan esas piezas; no añade un programa que
 funcione por su cuenta.
 
@@ -21,7 +21,7 @@ funcione por su cuenta.
 ```text
 Petición: «Diseña un registro»
         ↓
-workflow.yaml
+.workflow/workflow.yaml
         ↓
 Skill 1: grilling
         ↓
@@ -44,7 +44,7 @@ Una Skill es un conjunto reutilizable de instrucciones que explica a un agente
 de IA cómo realizar una tarea concreta. Puede vivir en tu proyecto o provenir
 de un tercero.
 
-### 2. `workflow.yaml`
+### 2. `.workflow/workflow.yaml`
 
 Es la receta del flujo. Indica qué Skills usar, en qué orden, qué información
 recibe cada una, qué resultados produce y a qué paso se pasa después. También
@@ -53,7 +53,7 @@ entregar a otro paso.
 
 ### 3. Project Workflow
 
-Es este proyecto/framework. Lee `workflow.yaml` y compone las Skills que ya
+Es este proyecto/framework. Lee `.workflow/workflow.yaml` y compone las Skills que ya
 tienes disponibles a través del cliente que estés usando. El cliente carga y
 aplica sus instrucciones; Project Workflow coordina la secuencia y los
 artefactos.
@@ -80,7 +80,7 @@ secciones necesarias de una receta válida. `grilling` y `writing-plans` deben
 estar disponibles en tu cliente si ejecutas este ejemplo sin cambiarlos.
 
 ```yaml
-# yaml-language-server: $schema=./workflow.schema.yaml
+# yaml-language-server: $schema=../workflow.schema.yaml
 id: register-design-workflow
 artifact_root: .workflow/artifacts
 default_delegation: inline
@@ -150,7 +150,7 @@ usa nombres de Skills de marcador de posición.
 ```text
 git clone https://github.com/vtrc/project-workflow.git
 cd project-workflow
-cp workflow.example.yaml workflow.yaml
+mkdir -p .workflow && cp workflow.example.yaml .workflow/workflow.yaml
 ```
 
 Después sustituye las Skills de marcador de posición por Skills disponibles en
@@ -165,7 +165,7 @@ Desde el proyecto donde quieres usar el flujo, ejecuta:
 npx skills add https://github.com/vtrc/project-workflow --skill project-workflow workflow-orchestrator skill-discovery
 ```
 
-El comando no instala `workflow.yaml`, la receta raíz ni las Skills externas
+El comando no instala `.workflow/workflow.yaml`, la receta canónica ni las Skills externas
 que esta referencie. Para crear la receta, copia o adapta
 [`workflow.example.yaml`](workflow.example.yaml) y sigue las dependencias que
 hayas declarado.
@@ -176,7 +176,7 @@ El usuario activa solo la Skill de entrada `project-workflow` mediante el
 mecanismo nativo de su cliente. `$project-workflow` es únicamente un ejemplo de
 invocación estilo Codex; no es un comando universal. No invoques manualmente
 `grilling`, `writing-plans` ni otras Skills intermedias: la entrada las compone
-en el orden indicado por `workflow.yaml`.
+en el orden indicado por `.workflow/workflow.yaml`.
 
 Los artefactos generados se guardan normalmente bajo `.workflow/`. Esa carpeta
 es estado de trabajo, no código fuente que este repositorio publique.
@@ -196,7 +196,7 @@ es estado de trabajo, no código fuente que este repositorio publique.
 
 - Skills externas como `grilling` o `writing-plans`;
 - un runtime de aplicación, servidor, MCP, base de datos o gestor de paquetes;
-- el archivo `workflow.yaml` de tu proyecto ni el estado generado de
+- el archivo `.workflow/workflow.yaml` de tu proyecto ni el estado generado de
   `.workflow/`.
 
 Este framework está pensado para clientes que implementan el estándar **Agent

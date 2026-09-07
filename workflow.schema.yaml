@@ -2,7 +2,7 @@ $schema: https://json-schema.org/draft/2020-12/schema
 $id: https://example.invalid/workflow.schema.yaml
 title: Agent Skills workflow recipe
 description: >-
-  Machine-readable structural schema for a project-local workflow.yaml recipe
+  Machine-readable structural schema for a project-local `.workflow/workflow.yaml` recipe
   used by Agent Skills-compatible clients. Semantic orchestration rules and
   host capability checks remain the responsibility of the workflow
   orchestrator; model and delegation values are host-interpreted intents, not
@@ -52,8 +52,11 @@ properties:
     default: host_default
   steps:
     type: array
-    minItems: 1
-    description: Non-empty ordered list of workflow steps.
+    minItems: 0
+    description: >-
+      Ordered list of workflow steps. An empty list is a valid initialized
+      recipe; Project Workflow asks the user to define its first step before
+      execution.
     items:
       $ref: '#/$defs/step'
     examples:

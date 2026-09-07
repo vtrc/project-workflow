@@ -1,6 +1,6 @@
 ---
 name: workflow-orchestrator
-description: "Trigger: ordered recipe workflows. Compose declared local Skills, persist artifacts, and advance only through workflow.yaml."
+description: "Trigger: ordered recipe workflows. Compose declared local Skills, persist artifacts, and advance only through .workflow/workflow.yaml."
 license: Apache-2.0
 metadata:
   author: project
@@ -11,7 +11,7 @@ metadata:
 
 ## Activation Contract
 
-Use when a project work item is governed by `workflow.yaml` in an Agent
+Use when a project work item is governed by `.workflow/workflow.yaml` in an Agent
 Skills-compatible client. Resolve only the recipe's declared local Skills; do
 not choose a workflow, Skill, or stage. The client invokes the project entry
 Skill through its own native mechanism; `$project-workflow` is only a Codex-style
@@ -62,7 +62,7 @@ substitute a client, Skill, or methodology.
 
 ## Execution Steps
 
-1. Load `workflow.yaml`, `.workflow/work-item.yaml`,
+1. Load `.workflow/workflow.yaml`, `.workflow/work-item.yaml`,
    `.workflow/artifact-registry.yaml`, and the references below.
 2. For a new request, create the durable work-item state, register the user
    request as ready source context, and select the first declared binding.

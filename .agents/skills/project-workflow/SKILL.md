@@ -20,12 +20,13 @@ process, select an undeclared Skill, or replace a task-specific Skill.
 
 ## Hard Rules
 
-- Load `workflow.yaml`, `.workflow/work-item.yaml`,
-  `.workflow/artifact-registry.yaml`, and the base contracts before action.
 - Apply [`skill-discovery`](../skill-discovery/SKILL.md) as the mandatory
-  same-context preflight before recipe validation. It is not a `workflow.yaml`
+  same-context preflight before loading or validating `.workflow/workflow.yaml`. It may
+  create the minimal recipe when the file is absent. It is not a `.workflow/workflow.yaml`
   step, does not consume a transition, and never requires a second user
   invocation.
+- After preflight, load `.workflow/workflow.yaml`, `.workflow/work-item.yaml`,
+  `.workflow/artifact-registry.yaml`, and the base contracts before action.
 - Check the host/client capability boundary in the [workflow orchestrator](../workflow-orchestrator/SKILL.md) before execution.
 - Validate the full recipe before execution. Do not repair an invalid recipe by
   guessing values or changing order.
@@ -39,54 +40,26 @@ process, select an undeclared Skill, or replace a task-specific Skill.
 
 ## Studio handoff
 
-Project Workflow Studio is the public visual editor for the local recipe. Its
-canonical URL is:
+Project Workflow Studio is the public visual editor for the canonical local
+workflow layout. Its canonical URL is:
 
 `https://vtrc.github.io/project-workflow-studio/`
 
-When the user is working with `workflow.yaml` or asks to edit the recipe,
-construct the Studio handoff URL with a safe relative path hint:
+When the user asks to edit the recipe, open or return this URL without a path
+hint. Studio requires the person to select the `.workflow` folder itself; it
+then reads `workflow.yaml` and `skill-catalog.json` directly from that already
+authorized directory and stores history in `.workflow/studio-history/`. Never
+ask Studio for the project root, a separate folder, a YAML file picker, or an
+upload. The selected directory is private browser state; never infer its path or
+claim it was opened or saved without explicit browser permission.
 
-`https://vtrc.github.io/project-workflow-studio/?path=<URL-encoded-relative-yaml-path>`
-
-For example, a repository-root recipe uses
-`https://vtrc.github.io/project-workflow-studio/?path=workflow.yaml`.
-Only pass a normalized relative `.yaml` or `.yml` path. Never include an
-absolute path, home-directory shorthand, parent traversal, credentials, or
-file contents. If the path cannot be represented safely, use the canonical URL
-without `?path=`. If the host has browser navigation available, open the URL;
-otherwise return it as a link. Do not ask the user to clone the Studio, install
-npm, use GitHub to transfer the YAML, or upload the file to a server.
-
-The handoff must describe this exact user-controlled flow:
-
-1. Open the Studio handoff URL. The relative hint only identifies the expected
-   recipe; it does not grant the site access to a local file.
-2. Press **Abrir workflow**. In browsers with the File System Access API,
-   select the Project Workflow repository root. The Studio resolves
-   `workflow.yaml` (or the hinted relative file) beneath that root and creates
-   or reuses `.workflow/studio-history/` there. A file handle alone cannot
-   expose its parent directory, so this folder selection is required for
-   persistent history.
-3. Edit the recipe visually.
-4. Press **Guardar cambios** to write to that same file when the browser grants
-   File System Access API write permission.
-
-The selected path is private browser state. Never infer a local path or claim
-that a file was opened or saved without the user's picker selection and the
-browser's explicit permission. This boundary prevents a public site from
-reading arbitrary local paths or receiving recipe contents without the user's
-action. If the browser lacks direct write support, tell the user that the
-   Studio can still import the YAML and download an edited copy. If the browser
-   lacks directory access, **Abrir workflow** falls back to the file picker;
-   history remains session-only.
 
 ## Mandatory Skill catalog preflight
 
 [`skill-discovery`](../skill-discovery/SKILL.md) owns generation of the local
 **Skill Catalog** for Studio. Every Project Workflow activation applies it first
 as a same-host-context preflight, before recipe validation and execution. This
-preflight is not a `workflow.yaml` step, does not alter recipe transitions, and
+preflight is not a `.workflow/workflow.yaml` step, does not alter recipe transitions, and
 does not ask the person for a second invocation.
 
 The preflight is deliberately non-blocking. If local access, global-root adapter
@@ -96,6 +69,11 @@ result) and continue the YAML workflow. Do not invent catalog data. When project
 access and atomic publication are available, publish the catalog and return its
 summary; unavailable global discovery is represented by the contract's
 project-only form.
+
+When `.workflow/workflow.yaml` is absent, the same preflight may atomically create the
+minimal empty recipe defined by Skill Discovery before recipe loading. It never
+overwrites an existing recipe or chooses its first Skill; the normal empty-step
+decision gate asks the user to define that stage.
 
 A recipe may still declare `skill-discovery` as an ordinary explicit binding
 when catalog generation is a required business step. That binding retains the
@@ -116,12 +94,13 @@ recipe's declared failure behavior; it is separate from the automatic preflight.
 
 ## Execution Steps
 
-1. Load the recipe and references. Identify the active work item and binding, or
-   initialize a new record from the user's request.
-2. Apply `skill-discovery` in preflight mode in this same host context. Before
-   recipe validation, publish the local catalog when possible; otherwise record
-   or return its warning and continue. Do not create a workflow binding,
-   transition, artifact-registry entry, hidden runtime, or second user prompt.
+1. Apply `skill-discovery` in preflight mode in this same host context. Before
+   recipe loading or validation, bootstrap the minimal recipe when it is absent
+   and publish the local catalog when possible; otherwise record or return its
+   warning and continue. Do not create a workflow binding, transition,
+   artifact-registry entry, hidden runtime, or second user prompt.
+2. Load the recipe and references. Identify the active work item and binding,
+   or initialize a new record from the user's request.
 3. Validate order, fields, artifact readiness and ownership, transitions,
    collisions, local Skill eligibility, and resolved execution intent.
 4. Compose the current eligible binding exactly as declared. If it asks the user

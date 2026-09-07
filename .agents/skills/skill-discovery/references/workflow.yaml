@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../workflow.schema.yaml
+# Created by Skill Discovery only when .workflow/workflow.yaml is absent.
+id: new-workflow
+artifact_root: .workflow/artifacts
+default_delegation: inline
+default_on_blocked: ask_user
+default_invocation: compose
+model: host_default
+reasoning_effort: host_default
+steps: []

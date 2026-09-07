@@ -1,6 +1,6 @@
 # Recipe Schema
 
-`workflow.yaml` is the single ordered recipe. It names concrete Skills only in
+`.workflow/workflow.yaml` is the single ordered recipe. It names concrete Skills only in
 that file; the framework does not choose or supply them. This contract targets
 clients that implement the Agent Skills standard. This repository uses
 `.agents/skills/` as its canonical local Skill source; a client adapter may map
@@ -176,7 +176,7 @@ structural completion and diagnostics by placing this comment at the top of a
 recipe:
 
 ```yaml
-# yaml-language-server: $schema=./workflow.schema.yaml
+# yaml-language-server: $schema=../workflow.schema.yaml
 ```
 
 Support for this convention varies by editor and YAML extension; the comment
