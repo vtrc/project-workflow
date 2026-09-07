@@ -4,7 +4,7 @@ description: "Trigger: project workflow. Start one YAML-declared work item and c
 license: Apache-2.0
 metadata:
   author: project
-  version: "1.1"
+  version: "1.2"
 ---
 
 # Project Workflow
@@ -32,6 +32,33 @@ process, select an undeclared Skill, or replace a task-specific Skill.
   applied binding and outcome; do not claim an independent host invocation.
 - Persist all state changes and accepted outputs before another binding consumes
   them. Continue automatically until a user decision, block, or completion.
+
+## Studio handoff
+
+Project Workflow Studio is the public visual editor for the local recipe. Its
+canonical URL is:
+
+`https://vtrc.github.io/project-workflow-studio/`
+
+When the user is working with `workflow.yaml` or asks to edit the recipe,
+offer this URL as the next step. If the host has browser navigation available,
+open the URL; otherwise return it as a link. Do not ask the user to clone the
+Studio, install npm, use GitHub to transfer the YAML, or upload the file to a
+server.
+
+The handoff must describe this exact user-controlled flow:
+
+1. Open the Studio URL.
+2. Select `workflow.yaml` from the user's own machine with the browser file
+   picker.
+3. Edit the recipe visually.
+4. Press **Guardar cambios** to write to that same file when the browser grants
+   File System Access API write permission.
+
+The selected path is private browser state. Never infer a local path or claim
+that a file was opened or saved without the user's picker selection and the
+browser's explicit permission. If the browser lacks direct write support, tell
+the user that the Studio can still import the YAML and download an edited copy.
 
 ## Decision Gates
 
