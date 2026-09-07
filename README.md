@@ -58,6 +58,21 @@ tienes disponibles a través del cliente que estés usando. El cliente carga y
 aplica sus instrucciones; Project Workflow coordina la secuencia y los
 artefactos.
 
+## Catálogo local de Skills
+
+En cada activación, Project Workflow ejecuta `skill-discovery` automáticamente
+como preflight no bloqueante en el mismo contexto del host. Con acceso ya
+concedido a la raíz del proyecto, publica `.workflow/skill-catalog.json` para
+Studio. Si falta acceso local, capacidad del adaptador global o escritura
+atómica, muestra o registra una advertencia y el workflow YAML continúa sin
+inventar datos. También puedes invocar `skill-discovery` directamente cuando
+quieras actualizar el catálogo de forma explícita.
+
+El catálogo contiene metadatos mínimos y no expone rutas absolutas ni contenido
+de Skills. Studio solo lo recarga desde la carpeta que la persona ya eligió; no
+busca directorios globales ni puede regenerarlo por sí mismo. El contrato completo
+es propiedad de [`skill-discovery`](.agents/skills/skill-discovery/SKILL.md).
+
 ## YAML mínimo completo
 
 El siguiente archivo reproduce el caso del registro y contiene todas las
