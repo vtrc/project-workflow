@@ -41,24 +41,36 @@ canonical URL is:
 `https://vtrc.github.io/project-workflow-studio/`
 
 When the user is working with `workflow.yaml` or asks to edit the recipe,
-offer this URL as the next step. If the host has browser navigation available,
-open the URL; otherwise return it as a link. Do not ask the user to clone the
-Studio, install npm, use GitHub to transfer the YAML, or upload the file to a
-server.
+construct the Studio handoff URL with a safe relative path hint:
+
+`https://vtrc.github.io/project-workflow-studio/?path=<URL-encoded-relative-yaml-path>`
+
+For example, a repository-root recipe uses
+`https://vtrc.github.io/project-workflow-studio/?path=workflow.yaml`.
+Only pass a normalized relative `.yaml` or `.yml` path. Never include an
+absolute path, home-directory shorthand, parent traversal, credentials, or
+file contents. If the path cannot be represented safely, use the canonical URL
+without `?path=`. If the host has browser navigation available, open the URL;
+otherwise return it as a link. Do not ask the user to clone the Studio, install
+npm, use GitHub to transfer the YAML, or upload the file to a server.
 
 The handoff must describe this exact user-controlled flow:
 
-1. Open the Studio URL.
-2. Select `workflow.yaml` from the user's own machine with the browser file
-   picker.
+1. Open the Studio handoff URL. The relative hint only identifies the expected
+   recipe; it does not grant the site access to a local file.
+2. Select `workflow.yaml` (or the hinted relative file) from the user's own
+   machine with the browser file picker. The user still chooses the file or
+   folder and the browser keeps that selection private.
 3. Edit the recipe visually.
 4. Press **Guardar cambios** to write to that same file when the browser grants
    File System Access API write permission.
 
 The selected path is private browser state. Never infer a local path or claim
 that a file was opened or saved without the user's picker selection and the
-browser's explicit permission. If the browser lacks direct write support, tell
-the user that the Studio can still import the YAML and download an edited copy.
+browser's explicit permission. This boundary prevents a public site from
+reading arbitrary local paths or receiving recipe contents without the user's
+action. If the browser lacks direct write support, tell the user that the
+Studio can still import the YAML and download an edited copy.
 
 ## Decision Gates
 
