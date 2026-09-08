@@ -1,18 +1,20 @@
 # Recipe Schema
 
-`.workflow/workflow.yaml` is the single ordered recipe. It names concrete Skills only in
-that file; the framework does not choose or supply them. This contract targets
-clients that implement the Agent Skills standard. This repository uses
+`.workflow/workflow.yaml` is the single ordered recipe. It declares workflow
+topology, inputs, step behavior, concrete local Skills, and optional step
+context. The framework does not choose or supply Skills. This repository uses
 `.agents/skills/` as its canonical local Skill source; a client adapter may map
-it to the client's native Skill directory. For structural editor validation, use the
-repository's [`workflow.schema.yaml`](../../../../workflow.schema.yaml). Host
-requirements and fallback behavior are defined in the [workflow orchestrator](../SKILL.md).
+it to the client's native Skill directory. For structural editor validation, use
+the repository's [`workflow.schema.yaml`](../../../../workflow.schema.yaml).
+
+The only new authored step field is optional `prompt`. Artifact identity and
+path are derived from `step.id`; runtime history and collision handling belong
+to the artifact registry, never to the recipe.
 
 ## Canonical shape
 
 ```yaml
 id: <workflow-id>
-artifact_root: <project-relative-directory>
 default_delegation: inline | subagent | auto
 default_on_blocked: ask_user | stop
 default_invocation: compose | user_explicit | host_permitted
@@ -20,190 +22,163 @@ model: inherit | host_default | <host-valid-model>
 reasoning_effort: inherit | host_default | <host-valid-reasoning-effort>
 steps:
   - id: <step-id>
+    prompt: <optional non-empty context for composed Skills>
     execution: sequential | parallel
     completion: all_required | any_success
     model: inherit | host_default | <host-valid-model> # optional
     reasoning_effort: inherit | host_default | <host-valid-reasoning-effort> # optional
     delegation: inline | subagent | auto # optional
-    inputs: [<artifact-id>] # optional
-    outputs: [<artifact-id>] # optional
+    inputs: [user-request | <preceding-step-id>] # optional
     on_success: <later-step-id> | complete
     on_blocked: ask_user | stop # optional
     skills:
       - name: <exact-local-skill-name>
-        role: primary | supporting | review | fallback
+        role: primary | supporting | review
         invocation: compose | user_explicit | host_permitted # optional
         required: true # optional; defaults to true
         model: inherit | host_default | <host-valid-model> # optional
         reasoning_effort: inherit | host_default | <host-valid-reasoning-effort> # optional
-        output_file: <project-relative-path> # optional
-        artifact: <artifact-id> # required with output_file
-        on_exists: fail | overwrite | version # optional; defaults to fail
 ```
 
 Root fields are required. A step requires `id`, `execution`, `completion`,
 `on_success`, and a non-empty ordered `skills` list. Step identifiers are unique
-and `on_success` must name a later declared step or `complete`. `inputs` and
-`outputs` are registry artifact identifiers.
+and `on_success` must name a later declared step or `complete`. Every step has
+exactly one `primary` binding.
+
+## Derived artifact contract
+
+A step owns exactly one public artifact:
+
+- Artifact ID: `step.id`.
+- Artifact path: `.workflow/artifacts/<step.id>.md`.
+- Derived output: `step.outputs` is derived as `[step.id]`; it is not authored.
+- Inputs: `user-request` or IDs of preceding steps whose registered artifacts
+  are ready.
+
+The `primary` publishes the derived public artifact. Supporting and review
+Skills contribute context only to the primary; they never publish separate public
+artifacts. A recipe has no alternate producer role.
+
+The runtime registry exclusively owns status, `run_id`, revisions, checksums,
+lineage, replacement, and collision policy. These facts are execution history,
+not workflow topology. An existing file is never sufficient proof that a step
+succeeded: the orchestrator requires the primary's structured step result and
+records the validated outcome in the registry.
 
 ## Field reference
 
-The tables below describe the structural contract. “Required” means the key
-must be present in the YAML object; defaults are the values used when an
-optional key is omitted.
-
 ### Root fields
 
-| Field | Level | Required | Type | Default | Allowed values | Meaning |
-| --- | --- | --- | --- | --- | --- | --- |
-| `id` | root | yes | non-empty string | — | workflow identifier | Stable identity for the recipe. |
-| `artifact_root` | root | yes | non-empty project-relative path string | — | path relative to project root | Directory under which workflow artifacts are expected. |
-| `default_delegation` | root | yes | string enum | `inline` (schema metadata) | `inline`, `subagent`, `auto` | Delegation inherited by steps without `delegation`: run in the current agent, use a subagent, or let host policy decide. |
-| `default_on_blocked` | root | yes | string enum | `ask_user` (schema metadata) | `ask_user`, `stop` | Action inherited by steps without `on_blocked` when required work blocks. |
-| `default_invocation` | root | yes | string enum | `compose` (schema metadata) | `compose`, `user_explicit`, `host_permitted` | Invocation inherited by bindings without `invocation`. |
-| `model` | root | yes | non-empty string | `host_default` (schema metadata) | `inherit`, `host_default`, or a model string valid for the host | Workflow-level model intent interpreted by the host adapter; not a universal runtime command. The schema deliberately does not invent a host model enum. |
-| `reasoning_effort` | root | yes | non-empty string | `host_default` (schema metadata) | `inherit`, `host_default`, or a reasoning value valid for the host | Workflow-level reasoning intent interpreted by the host adapter; not a universal runtime command. The schema deliberately does not invent a host enum. |
-| `steps` | root | yes | array, `minItems: 1` | — | step objects | Ordered workflow stages. |
-
-The defaults shown as “schema metadata” document the repository's conventional
-defaults; because all root fields are required, a recipe should write them
-explicitly rather than rely on YAML default insertion.
+| Field | Level | Required | Type | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| `id` | root | yes | non-empty string | — | Stable workflow identity. |
+| `default_delegation` | root | yes | string enum | `inline` (schema metadata) | Delegation inherited by steps without `delegation`. |
+| `default_on_blocked` | root | yes | string enum | `ask_user` (schema metadata) | Action inherited by steps without `on_blocked`. |
+| `default_invocation` | root | yes | string enum | `compose` (schema metadata) | Invocation inherited by bindings without `invocation`. |
+| `model` | root | yes | non-empty string | `host_default` (schema metadata) | Workflow-level host model intent. |
+| `reasoning_effort` | root | yes | non-empty string | `host_default` (schema metadata) | Workflow-level host reasoning intent. |
+| `steps` | root | yes | array, `minItems: 0` | — | Ordered workflow stages; an initialized recipe may leave this empty until its first step is declared. |
 
 ### Step fields
 
-| Field | Level | Required | Type | Default | Allowed values | Meaning |
-| --- | --- | --- | --- | --- | --- | --- |
-| `id` | step | yes | non-empty string | — | unique step identifier | Names this stage and is the target of transitions. |
-| `execution` | step | yes | string enum | — | `sequential`, `parallel` | Run bindings in list order, or start eligible bindings together when the host supports it. |
-| `completion` | step | yes | string enum | — | `all_required`, `any_success` | `all_required` waits for every required binding; `any_success` completes after one required binding succeeds. |
-| `model` | step | no | non-empty string | inherited from root | `inherit`, `host_default`, or host-valid model string | Step-level model intent, overriding the workflow value when resolved. |
-| `reasoning_effort` | step | no | non-empty string | inherited from root | `inherit`, `host_default`, or host-valid reasoning value | Step-level reasoning intent, overriding the workflow value when resolved. |
-| `delegation` | step | no | string enum | inherited from `default_delegation` | `inline`, `subagent`, `auto` | Step-level delegation override. |
-| `inputs` | step | no | array of non-empty artifact IDs | `[]` | registry artifact identifiers; unique within the array | Artifacts consumed by the step. They must already be `ready` when the orchestrator runs it. |
-| `outputs` | step | no | array of non-empty artifact IDs | `[]` | registry artifact identifiers; unique within the array | Artifacts the step declares as produced. |
-| `on_success` | step | yes | non-empty string | — | `complete` or a later declared step ID | Next transition after success. Later-step ordering is checked by the orchestrator. |
-| `on_blocked` | step | no | string enum | inherited from `default_on_blocked` | `ask_user`, `stop` | Step-level blocked-action override. |
-| `skills` | step | yes | array of binding objects, `minItems: 1` | — | ordered binding objects | Local Skill composition bindings. At least one binding must be required. |
-
-`sequential` and `parallel` describe binding scheduling, not a promise that a
-host can execute parallel work. They are execution intents interpreted by the
-host adapter. `primary`, `supporting`, and `review` communicate
-responsibility; `fallback` is eligible only in a sequential step after an earlier
-required non-fallback binding cannot complete.
+| Field | Level | Required | Type | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| `id` | step | yes | non-empty string | — | Unique stage identity, transition target, and derived artifact ID. |
+| `prompt` | step | no | non-empty string | — | Additional context for composed Skills, when their own instructions and declared inputs are insufficient. |
+| `execution` | step | yes | string enum | — | `sequential` or `parallel` scheduling intent. |
+| `completion` | step | yes | string enum | — | `all_required` or `any_success` completion intent. |
+| `model` | step | no | non-empty string | inherited from root | Step-level host model intent. |
+| `reasoning_effort` | step | no | non-empty string | inherited from root | Step-level host reasoning intent. |
+| `delegation` | step | no | string enum | inherited from `default_delegation` | Step-level delegation intent. |
+| `inputs` | step | no | array of source IDs | `[]` | `user-request` or earlier step IDs; each must be ready in the registry. |
+| `on_success` | step | yes | non-empty string | — | `complete` or a later declared step ID. |
+| `on_blocked` | step | no | string enum | inherited from `default_on_blocked` | Step-level blocked action. |
+| `skills` | step | yes | array of bindings, `minItems: 1` | — | Ordered local-Skill bindings with exactly one primary. |
 
 ### Binding fields
 
-| Field | Level | Required | Type | Default | Allowed values | Meaning |
-| --- | --- | --- | --- | --- | --- | --- |
-| `name` | binding | yes | non-empty string | — | exact local Skill frontmatter name | Skill to resolve from this repository's `.agents/skills/<name>/SKILL.md` source or its client-adapter mapping. |
-| `role` | binding | yes | string enum | — | `primary`, `supporting`, `review`, `fallback` | Responsibility label; it does not choose a methodology. |
-| `invocation` | binding | no | string enum | inherited from `default_invocation` | `compose`, `user_explicit`, `host_permitted` | How this binding is invoked. |
-| `required` | binding | no | boolean | `true` | `true`, `false` | Required bindings determine step completion and can block; optional bindings may register output but cannot satisfy or block a step. |
-| `model` | binding | no | non-empty string | inherited from step, then root, then host | `inherit`, `host_default`, or host-valid model string | Highest-precedence model intent for this binding. |
-| `reasoning_effort` | binding | no | non-empty string | inherited from step, then root, then host | `inherit`, `host_default`, or host-valid reasoning value | Highest-precedence reasoning intent for this binding. |
-| `output_file` | binding | no | non-empty project-relative path string | — | project-relative path | Expected output location; it is not proof that output exists. |
-| `artifact` | binding | conditional | non-empty artifact ID | — | registry artifact identifier | Artifact owned by this binding. It is required whenever `output_file` is present. |
-| `on_exists` | binding | no | string enum | `fail` | `fail`, `overwrite`, `version` | Collision policy: fail on an existing path; overwrite only an artifact this binding owns; or create/register a distinct versioned path. |
+| Field | Level | Required | Type | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| `name` | binding | yes | non-empty string | — | Exact local Skill frontmatter name. |
+| `role` | binding | yes | string enum | — | `primary`, `supporting`, or `review`. |
+| `invocation` | binding | no | string enum | inherited from `default_invocation` | How the binding is invoked. |
+| `required` | binding | no | boolean | `true` | Whether the binding participates in the step completion policy. |
+| `model` | binding | no | non-empty string | inherited from step and root | Highest-precedence host model intent. |
+| `reasoning_effort` | binding | no | non-empty string | inherited from step and root | Highest-precedence host reasoning intent. |
 
-A step must contain at least one required binding. `all_required` completes only
-when every required binding succeeds. `any_success` completes when one required
-binding succeeds. Optional bindings cannot satisfy or block either completion
-mode.
+`sequential` and `parallel` describe scheduling intent, not a universal host
+capability promise. Resolve `model` as binding, then step, then workflow, then
+host configuration; resolve `reasoning_effort` the same way. `inherit` defers to
+the next scope, while `host_default` selects host configuration.
 
-## Binding and completion semantics
-
-Bindings are ordered. `sequential` runs eligible bindings in list order;
-`parallel` starts eligible bindings together only when the host supports it.
-`fallback` is valid only in a sequential step and becomes eligible after an
-earlier required non-fallback binding cannot complete. `primary`, `supporting`,
-and `review` communicate responsibility; they do not select a methodology.
-
-## Resolution and composition
-
-Resolve `model` as binding, then step, then workflow, then host configuration.
-Resolve `reasoning_effort` in the same order. `inherit` defers to the next
-scope; `host_default` selects the host configuration. Other values must be valid
-for the current host; the recipe does not enumerate them. Resolve `delegation`
-from step to workflow and `invocation` from binding to `default_invocation`.
+## Composition and completion
 
 `compose` is the recommended default for a hands-off recipe. The parent workflow
-reads the named local Skill's `SKILL.md` and applies it in the active host
-context with declared ready inputs and output contract. It is not an independent
-host invocation. A binding is eligible only when its local `SKILL.md` exists,
-its standard frontmatter name matches, and the host/client policy permits the
-requested implicit, model, and composition behavior.
+reads the named local Skill's `SKILL.md` and applies it in the active host context
+with declared ready inputs, optional step prompt, and a role-specific contract.
+It is not an independent host invocation. A binding is eligible only when its
+local `SKILL.md` exists, its standard frontmatter name matches, and host/client
+policy permits the requested behavior.
 
-`user_explicit` deliberately opts out of composition and is incompatible with a
-fully hands-off recipe. `host_permitted` may be used only when a host can prove
-it supports the invocation; the recipe never assumes a universal dispatcher.
-Model, reasoning, and delegation fields similarly record intents for the host
-adapter, not universal runtime commands. Composition cannot switch the active
-model without host support.
-
-## Output and lifecycle
-
-`output_file` is an expected path, not proof of output. Pair it with an
-`artifact`; the registry records both `expected_output_path` and `actual_path`.
-Use `on_exists`: `fail` is default, `overwrite` requires the binding to own the
-artifact, and `version` creates and registers a distinct actual path. See the
-[artifact contract](artifact-contract.md) for lifecycle and collision rules.
+A step completes only after the orchestrator validates the primary's structured
+result and registers its derived artifact as ready. Supporting and review context
+may inform the primary result but cannot independently satisfy public artifact
+production. `all_required` and `any_success` still determine required binding
+completion; neither changes primary ownership.
 
 ## Multi-skill example
 
 ```yaml
 - id: example-step
+  prompt: Summarize the evidence for the next decision.
   execution: sequential
   completion: all_required
-  inputs: [source-note]
-  outputs: [result-note]
+  inputs: [user-request]
   on_success: complete
   skills:
+    - name: example-research
+      role: supporting
+      invocation: compose
     - name: example-primary
       role: primary
       invocation: compose
-      artifact: result-note
-      output_file: .workflow/result-note.md
     - name: example-review
       role: review
       invocation: compose
       required: false
 ```
 
+The public result of this step is always
+`.workflow/artifacts/example-step.md`, produced by `example-primary` and
+registered by the orchestrator.
+
+## Compatible legacy import
+
+A compatibility reader may accept retired redundant artifact declarations only
+when they agree with the derived step ID and path. Canonical saves omit all such
+redundant values. Runtime collision instructions are not portable recipe data
+and are rejected rather than silently reinterpreted.
+
 ## Editor integration
 
-Editors that support the YAML language-server convention can opt into
-structural completion and diagnostics by placing this comment at the top of a
-recipe:
+Editors that support the YAML language-server convention can opt into structural
+completion and diagnostics by placing this comment at the top of a recipe:
 
 ```yaml
 # yaml-language-server: $schema=../workflow.schema.yaml
 ```
 
-Support for this convention varies by editor and YAML extension; the comment
-is an opt-in hint, not a universal compatibility guarantee.
+Support varies by editor and YAML extension; the comment is an opt-in hint, not
+a universal compatibility guarantee.
 
 ## What JSON Schema cannot guarantee
 
 `workflow.schema.yaml` validates the shape and basic types of one recipe. It
-cannot, by itself, guarantee:
-
-- that `on_success` points to a *later* step, that transitions are reachable, or
-  that the workflow eventually terminates;
-- that referenced artifacts exist in the registry, are `ready`, have valid
-  lineage, or match the producing binding's ownership;
-- that a named Skill is installed, has matching standard frontmatter, or is
-  eligible under the host/client invocation policy;
-- that the host supports the requested model, reasoning effort, parallel
-  execution, delegation mode, or invocation capability;
-- that output paths are safe, writable, collision-free, or semantically
-  compatible with an existing artifact;
-- semantic rules such as fallback timing, at least one required binding's
-  successful completion, or the relationship between a step's declared inputs
-  and outputs.
-
-The workflow orchestrator validates these runtime and cross-object rules before
-composing a binding, persists state and artifact lineage, and owns transitions.
-A schema pass is structural validation, not authorization to execute the recipe.
+cannot, by itself, guarantee unique IDs, preceding-input order, reachable later
+transitions, local-Skill eligibility, host capability, input readiness, exactly
+one primary, or the validity of a structured step result. The workflow
+orchestrator validates those runtime and cross-object rules, owns transitions,
+and writes runtime metadata to the registry.
 
 ## Composition limitation
 

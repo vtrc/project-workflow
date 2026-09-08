@@ -3,10 +3,35 @@
 ## Authority
 
 Each work item has one orchestrator-owned Work Item Record at
-`.workflow/work-item.yaml` and one Artifact Registry at
+`.workflow/work-item.yaml` and one runtime-owned Artifact Registry at
 `.workflow/artifact-registry.yaml`. The registry is the durable handoff surface:
-it records artifacts before a later step consumes them and never treats a
-conversational summary as a substitute for durable input.
+it records validated step artifacts before a later step consumes them and never
+treats a conversational summary or the presence of a file as a substitute for a
+structured result.
+
+`workflow.yaml` declares topology and optional step context. The runtime registry
+exclusively owns status, `run_id`, revisions, checksums, lineage, replacement,
+and collision policy.
+
+## Step-owned public artifacts
+
+Every step owns exactly one public artifact:
+
+| Derived value | Rule |
+| --- | --- |
+| logical ID | `step.id` |
+| public path | `.workflow/artifacts/<step.id>.md` |
+| producer | the step's exactly one `primary` binding |
+| derived output | `step.outputs = [step.id]` (not authored) |
+
+The primary is the only public artifact producer. Supporting and review
+Skills contribute context only to the primary and never publish separate public
+artifacts. The orchestrator must reject a step that does not declare exactly one
+primary before composing it.
+
+A change to a step ID intentionally changes its public artifact path. Inputs
+reference `user-request` or preceding step IDs, not configurable artifact names
+or paths.
 
 ## Work Item Record
 
@@ -17,7 +42,7 @@ The record contains at least:
   `current.status`;
 - `awaiting.kind` and `awaiting.summary` when the user must answer;
 - resolved model, reasoning effort, and delegation intent; and
-- append-only `history` for completed, blocked, and transitioned bindings.
+- append-only history for completed, blocked, and transitioned bindings.
 
 `state` is `idle`, `active`, `completed`, `blocked`, or `cancelled`.
 `current.status` is `idle`, `pending`, `running`, `awaiting_user`, `completed`,
@@ -25,50 +50,59 @@ or `blocked`. Retain `state: active` while awaiting a direct user answer so the
 project resume rule can continue the same binding. Move to `completed` only at
 `on_success: complete`; apply blocked handling before `state: blocked`.
 
-## Artifact Registry
+## Runtime Artifact Registry
 
 The registry contains `version`, `work_item_id`, and an `artifacts` list. A new
-work item first registers its user request as ready source context. It may have
-no file path because its canonical text is retained in the Work Item Record.
+work item first registers `user-request` as ready source context. It may have no
+file path because its canonical text is retained in the Work Item Record.
 
-For every declared or produced artifact, record:
+For each produced step artifact, the registry records:
 
-- `id` — the logical artifact identifier declared by the recipe;
-- `owner` — the single binding or assigned agent allowed to write it;
-- `state` — `planned`, `draft`, `ready`, `blocked`, `superseded`, or `archived`;
-- `expected_output_path` — configured `output_file`, if any;
-- `actual_path` — the actual produced path, separate from the expected path;
-- `inputs` — source artifact identifiers; and
-- `authoritative` and `replaces` — source-of-truth and supersession details.
+- derived `id` and `path` from the step ID;
+- `owner`, the step's primary producer;
+- runtime `state`: `planned`, `draft`, `ready`, `blocked`, `superseded`, or
+  `archived`;
+- runtime `run_id`, revision, checksum, and input lineage;
+- replacement/supersession relationships; and
+- the runtime collision decision and its outcome.
 
-An input must be `ready` before use unless the Work Item Record records a
-narrower exception. An artifact without a locatable actual path, when one is
-required, is not ready.
+These fields are registry-owned execution facts. Producers do not author them in
+the recipe and cannot assign their own revision, checksum, lineage record, or
+collision outcome.
 
-## Ownership and output paths
+An input must be `ready` before use unless the Work Item Record records a narrow
+exception. A completed step artifact is visible to later steps only after the
+registry validates it and records it as `ready`.
 
-Each artifact has exactly one owner at a time. Other bindings and subagents may
-read it or request a change, but may not write it. Record ownership transfer or
-replacement before the next write.
+## Structured primary result
 
-`output_file` declares an expected project-relative path; it does not prove that
-the file exists. After production, register `actual_path` separately. A binding
-with `output_file` must declare `artifact`.
+The primary must return a structured step result. It contains at least:
 
-| Rule | Required behavior |
-| --- | --- |
-| `fail` | Stop before writing and report the collision. This is the default. |
-| `overwrite` | Write only when the binding owns the artifact and has stated authority. Register the replacement. |
-| `version` | Produce a distinct path and register it as `actual_path` without changing the expected path. |
+- `step_id` and `primary`, which identify the active step and its sole producer;
+- `outcome`: `completed`, `blocked`, or `awaiting_user`;
+- `artifact_id` and `artifact_path`, equal to the derived ID and path on a
+  completed outcome;
+- consumed `inputs` with their registered lineage; and
+- a durable `summary` for the next step.
 
-Two bindings may not claim the same artifact identifier. Bindings in one step
-may not declare the same expected output path. Do not copy a source-generated
-file to normalize it: register its authoritative original location instead.
+The orchestrator verifies that the result is for the active step and primary,
+uses only the derived ID/path, validates input readiness and lineage, and then
+lets the registry assign runtime metadata. File existence alone is not success:
+a file at `.workflow/artifacts/<step.id>.md` without a valid structured result
+is not a registered ready artifact and cannot unlock a transition.
 
 ## Registration flow
 
-1. A producer reports the artifact identifier, owner, state, expected and actual
-   locations, and input lineage. After a composed binding completes, the parent
-   writes or registers only that binding's declared output.
-2. The orchestrator verifies the report against the active recipe binding.
-3. The registry exposes an artifact only after its state becomes `ready`.
+1. The orchestrator validates the ordered recipe, ready inputs, and exactly one
+   primary for the active step.
+2. Supporting and review bindings provide context; the primary publishes the
+   derived public artifact and returns its structured step result.
+3. The orchestrator validates that result against the active step and the
+   registry, including the derived ID/path and input lineage.
+4. The registry applies its own collision policy, assigns run metadata and
+   provenance, and exposes the artifact only after its state becomes `ready`.
+5. The orchestrator follows the declared transition only after registration.
+
+Do not copy a source-generated file to normalize it. When compatibility import
+permits an existing artifact, the registry records its authoritative location
+and lineage before any later step consumes it.

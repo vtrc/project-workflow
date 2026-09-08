@@ -45,3 +45,24 @@ test('canonical schema examples omit retired artifact configuration', async () =
 
   assert.doesNotMatch(schema, /^\s+(artifact_root|outputs|artifact|output_file|on_exists):/m)
 })
+
+test('defines the orchestrator contract for a single step-owned public artifact', async () => {
+  const orchestrator = await load('.agents/skills/workflow-orchestrator/SKILL.md')
+  const recipe = await load('.agents/skills/workflow-orchestrator/references/recipe-schema.md')
+  const artifacts = await load('.agents/skills/workflow-orchestrator/references/artifact-contract.md')
+
+  assert.match(orchestrator, /exactly one `primary`/i)
+  assert.match(orchestrator, /\.workflow\/artifacts\/<step\.id>\.md/)
+  assert.match(orchestrator, /structured step result/i)
+  assert.match(orchestrator, /file\s+existence alone is not success/i)
+
+  assert.match(recipe, /`step\.outputs` is derived as `\[step\.id\]`/i)
+  assert.doesNotMatch(recipe, /^artifact_root:/m)
+  assert.doesNotMatch(recipe, /^\s+outputs:/m)
+  assert.doesNotMatch(recipe, /fallback producer/i)
+  assert.match(recipe, /supporting.*review.*context only/is)
+
+  assert.match(artifacts, /runtime registry\s+exclusively owns status, `run_id`, revisions, checksums, lineage, replacement,\s+and collision policy/i)
+  assert.match(artifacts, /primary.*only.*public artifact producer/is)
+  assert.match(artifacts, /supporting.*review.*never publish separate public\s+artifacts/is)
+})
