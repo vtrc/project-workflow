@@ -73,6 +73,8 @@ test('bootstraps a valid blank recipe before Project Workflow loads it', async (
   assert.ok(preflightIndex !== -1 && workflowLoadIndex !== -1 && preflightIndex < workflowLoadIndex)
 
   assert.match(template, /^id: new-workflow$/m)
-  assert.match(template, /^artifact_root: \.workflow\/artifacts$/m)
+  assert.doesNotMatch(template, /^artifact_root:/m)
+  assert.doesNotMatch(template, /^outputs:/m)
+  assert.doesNotMatch(template, /^\s+(artifact|output_file|on_exists):/m)
   assert.match(template, /^steps: \[\]$/m)
 })

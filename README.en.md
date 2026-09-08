@@ -25,11 +25,11 @@ Request: “Design a registration flow”
         ↓
 Skill 1: grilling
         ↓
-Intermediate result: clarified-brief.md
+Artifact: .workflow/artifacts/clarify-request.md
         ↓
 Skill 2: writing-plans
         ↓
-Final result: implementation-plan.md
+Artifact: .workflow/artifacts/make-plan.md
 ```
 
 The two Skills in the diagram are only an example. The current recipe names
@@ -46,9 +46,9 @@ a specific task. It can live in your project or come from a third party.
 ### 2. `.workflow/workflow.yaml`
 
 This is the workflow recipe. It says which Skills to use, in what order, what
-information each one receives, what results it produces, and which step comes
-next. It also says where to save artifacts—the results that you can read or
-pass to another step.
+information each one receives, and which step comes next. A step ID is also its
+artifact ID: the runtime derives `.workflow/artifacts/<step.id>.md` and later
+steps consume the preceding step ID.
 
 ### 3. Project Workflow
 
@@ -81,7 +81,6 @@ available in your client if you run this example unchanged.
 ```yaml
 # yaml-language-server: $schema=../workflow.schema.yaml
 id: register-design-workflow
-artifact_root: .workflow/artifacts
 default_delegation: inline
 default_on_blocked: ask_user
 default_invocation: compose
@@ -94,50 +93,53 @@ steps:
     completion: all_required
     delegation: inline
     inputs: [user-request]
-    outputs: [clarified-brief]
     on_success: make-plan
     on_blocked: ask_user
     skills:
       - name: grilling
         role: primary
         invocation: compose
-        artifact: clarified-brief
-        output_file: .workflow/artifacts/clarified-brief.md
-        on_exists: version
 
   - id: make-plan
     execution: sequential
     completion: all_required
     delegation: inline
-    inputs: [clarified-brief]
-    outputs: [implementation-plan]
+    inputs: [clarify-request]
     on_success: complete
     on_blocked: ask_user
     skills:
       - name: writing-plans
         role: primary
         invocation: compose
-        artifact: implementation-plan
-        output_file: .workflow/artifacts/implementation-plan.md
-        on_exists: version
 ```
 
 ### How to read the example
 
-- The opening fields (`id`, `artifact_root`, and the `default_*` values) identify
-  the workflow and its general defaults.
+- The opening fields (`id` and the `default_*` values) identify the workflow and
+  its general defaults.
 - `steps` is the ordered list of stages. `clarify-request` receives the initial
-  request (`user-request`) and produces `clarified-brief`.
+  request (`user-request`), owns artifact ID `clarify-request`, and therefore
+  publishes `.workflow/artifacts/clarify-request.md`.
 - `on_success: make-plan` says that the second stage starts when the first one
   succeeds. The second stage ends with `on_success: complete`.
 - Inside `skills`, `name` must exactly match the name of an available Skill.
-  `role: primary` says it is the main Skill for that stage, and
-  `invocation: compose` says the entry Skill composes it in the client's active
-  context.
-- `artifact` identifies the result and `output_file` says where to save it. The
-  second stage's `inputs` consumes the artifact produced by the first.
+  Every step has exactly one `role: primary`: it is the public artifact
+  producer. `supporting` and `review` Skills contribute context only. The entry
+  Skill composes each declared Skill in the client's active context.
+- The second stage's `inputs: [clarify-request]` consumes the first step's
+  artifact. `prompt` is an optional, non-empty step-level context for composed
+  Skills when the inputs and Skill instructions are not enough.
 - `model`, `reasoning_effort`, `delegation`, and `execution` are intents
   interpreted by the client adapter; they are not universal commands.
+
+### Runtime-owned artifact history and migration
+
+The runtime registry, not the recipe, owns status, run IDs, revisions,
+checksums, lineage, replacement, and collision handling. It derives the public
+path from each step ID on every run. A compatible legacy importer may read
+redundant artifact declarations only when they agree with that derivation; a
+canonical save removes them. Incompatible legacy declarations are rejected
+rather than silently rewritten.
 
 You can start by adapting [`workflow.example.yaml`](workflow.example.yaml),
 which uses placeholder Skill names.

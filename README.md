@@ -25,11 +25,11 @@ Petición: «Diseña un registro»
         ↓
 Skill 1: grilling
         ↓
-Resultado intermedio: clarified-brief.md
+Artefacto: .workflow/artifacts/clarify-request.md
         ↓
 Skill 2: writing-plans
         ↓
-Resultado final: implementation-plan.md
+Artefacto: .workflow/artifacts/make-plan.md
 ```
 
 Las dos Skills del diagrama son solo un ejemplo. La receta actual las nombra,
@@ -47,9 +47,9 @@ de un tercero.
 ### 2. `.workflow/workflow.yaml`
 
 Es la receta del flujo. Indica qué Skills usar, en qué orden, qué información
-recibe cada una, qué resultados produce y a qué paso se pasa después. También
-indica dónde guardar los artefactos, es decir, los resultados que puedes leer o
-entregar a otro paso.
+recibe cada una y a qué paso se pasa después. El ID de cada paso también es su
+ID de artefacto: el runtime deriva `.workflow/artifacts/<step.id>.md` y los
+pasos posteriores consumen el ID del paso anterior.
 
 ### 3. Project Workflow
 
@@ -82,7 +82,6 @@ estar disponibles en tu cliente si ejecutas este ejemplo sin cambiarlos.
 ```yaml
 # yaml-language-server: $schema=../workflow.schema.yaml
 id: register-design-workflow
-artifact_root: .workflow/artifacts
 default_delegation: inline
 default_on_blocked: ask_user
 default_invocation: compose
@@ -95,50 +94,56 @@ steps:
     completion: all_required
     delegation: inline
     inputs: [user-request]
-    outputs: [clarified-brief]
     on_success: make-plan
     on_blocked: ask_user
     skills:
       - name: grilling
         role: primary
         invocation: compose
-        artifact: clarified-brief
-        output_file: .workflow/artifacts/clarified-brief.md
-        on_exists: version
 
   - id: make-plan
     execution: sequential
     completion: all_required
     delegation: inline
-    inputs: [clarified-brief]
-    outputs: [implementation-plan]
+    inputs: [clarify-request]
     on_success: complete
     on_blocked: ask_user
     skills:
       - name: writing-plans
         role: primary
         invocation: compose
-        artifact: implementation-plan
-        output_file: .workflow/artifacts/implementation-plan.md
-        on_exists: version
 ```
 
 ### Cómo leer el ejemplo
 
-- Los campos del principio (`id`, `artifact_root` y los valores `default_*`)
-  identifican el flujo y sus valores generales.
+- Los campos del principio (`id` y los valores `default_*`) identifican el flujo
+  y sus valores generales.
 - `steps` es la lista ordenada de etapas. `clarify-request` recibe la petición
-  inicial (`user-request`) y produce `clarified-brief`.
+  inicial (`user-request`), posee el ID de artefacto `clarify-request` y por
+  tanto publica `.workflow/artifacts/clarify-request.md`.
 - `on_success: make-plan` indica que, si la primera etapa termina bien, empieza
   la segunda. La segunda termina con `on_success: complete`.
 - Dentro de `skills`, `name` debe coincidir exactamente con el nombre de la
-  Skill disponible. `role: primary` indica que es la Skill principal de esa
-  etapa y `invocation: compose` indica que la entrada la compone dentro del
-  contexto activo del cliente.
-- `artifact` identifica el resultado y `output_file` indica dónde guardarlo.
-  `inputs` de la segunda etapa consume el artefacto producido por la primera.
+  Skill disponible. Cada paso tiene exactamente una `role: primary`: es quien
+  produce el artefacto público. Las Skills `supporting` y `review` aportan solo
+  contexto. La Skill de entrada compone cada Skill declarada dentro del contexto
+  activo del cliente.
+- `inputs: [clarify-request]` de la segunda etapa consume el artefacto del
+  primer paso. `prompt` es un contexto opcional y no vacío a nivel de paso para
+  las Skills compuestas cuando los inputs y las instrucciones de la Skill no
+  bastan.
 - `model`, `reasoning_effort`, `delegation` y `execution` son intenciones que el
   adaptador del cliente interpreta; no son comandos universales.
+
+### Historial de artefactos y migración en el runtime
+
+El registro del runtime (runtime registry), no la receta, es propietario de estado, IDs de
+ejecución, revisiones, checksums, linaje, reemplazo y manejo de colisiones.
+Deriva la ruta pública de cada ID de paso en cada ejecución. Un importador
+compatible de formatos heredados puede leer declaraciones de artefactos
+redundantes solo cuando coinciden con esa derivación; un guardado canónico las
+elimina. Las declaraciones heredadas incompatibles se rechazan en lugar de
+reescribirse en silencio.
 
 Puedes empezar adaptando [`workflow.example.yaml`](workflow.example.yaml), que
 usa nombres de Skills de marcador de posición.
