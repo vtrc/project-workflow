@@ -11,7 +11,6 @@ type: object
 additionalProperties: false
 required:
   - id
-  - artifact_root
   - default_delegation
   - default_on_blocked
   - default_invocation
@@ -25,11 +24,6 @@ properties:
     description: Stable identifier for this workflow recipe.
     examples:
       - grill-me-superpowers-trial
-  artifact_root:
-    $ref: '#/$defs/projectRelativePath'
-    description: Project-relative directory used as the root for generated artifacts.
-    examples:
-      - .workflow/artifacts
   default_delegation:
     $ref: '#/$defs/delegation'
     description: Delegation mode inherited by steps that do not set delegation.
@@ -73,13 +67,6 @@ $defs:
     type: string
     minLength: 1
     description: Non-empty recipe identifier; uniqueness and cross references are semantic checks.
-  projectRelativePath:
-    type: string
-    minLength: 1
-    pattern: '^(?!/)(?![A-Za-z]:).+$'
-    description: Non-empty path intended to be relative to the project root.
-  artifactId:
-    $ref: '#/$defs/nonEmptyId'
   model:
     type: string
     minLength: 1
@@ -145,20 +132,11 @@ $defs:
       - primary
       - supporting
       - review
-      - fallback
     description: Responsibility label for a binding; it does not select a methodology.
   required:
     type: boolean
     default: true
     description: Whether this binding must succeed for step completion or can be skipped.
-  onExists:
-    type: string
-    enum:
-      - fail
-      - overwrite
-      - version
-    default: fail
-    description: Collision policy when the declared artifact output already exists.
   step:
     type: object
     additionalProperties: false
@@ -172,6 +150,10 @@ $defs:
       id:
         $ref: '#/$defs/nonEmptyId'
         description: Unique identifier for this step.
+      prompt:
+        type: string
+        minLength: 1
+        description: Optional context for composed Skills in this step.
       execution:
         $ref: '#/$defs/execution'
       completion:
@@ -188,17 +170,10 @@ $defs:
       inputs:
         type: array
         items:
-          $ref: '#/$defs/artifactId'
+          $ref: '#/$defs/nonEmptyId'
         uniqueItems: true
         default: []
-        description: Optional registry artifact identifiers consumed by this step.
-      outputs:
-        type: array
-        items:
-          $ref: '#/$defs/artifactId'
-        uniqueItems: true
-        default: []
-        description: Optional registry artifact identifiers produced by this step.
+        description: Optional user-request or preceding step identifiers consumed by this step.
       on_success:
         anyOf:
           - $ref: '#/$defs/nonEmptyId'
@@ -244,26 +219,7 @@ $defs:
       reasoning_effort:
         $ref: '#/$defs/reasoningEffort'
         description: Optional binding-level reasoning intent; highest precedence.
-      output_file:
-        $ref: '#/$defs/projectRelativePath'
-        description: Optional expected project-relative output path; it is not proof of output.
-      artifact:
-        $ref: '#/$defs/artifactId'
-        description: Registry artifact owned by this binding; required when output_file is present.
-      on_exists:
-        $ref: '#/$defs/onExists'
-        description: Optional output collision policy; defaults to fail.
-    allOf:
-      - if:
-          required:
-            - output_file
-        then:
-          required:
-            - artifact
     examples:
       - name: example-primary
         role: primary
         invocation: compose
-        artifact: result-note
-        output_file: .workflow/artifacts/result-note.md
-        on_exists: version
