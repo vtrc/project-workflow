@@ -46,3 +46,31 @@ test('documents the step-owned artifact handoff in both READMEs', async () => {
     assert.match(document, /legacy|heredad/i)
   }
 })
+
+test('reconciles runtime fixtures to canonical step-owned artifact identities', async () => {
+  const [registry, workItem] = await Promise.all([
+    load('tests/fixtures/step-owned-artifact-registry.yaml'),
+    load('tests/fixtures/step-owned-work-item.yaml'),
+  ])
+
+  assert.match(
+    registry,
+    /- id: clarify-with-grilling[\s\S]*?expected_output_path: \.workflow\/artifacts\/clarify-with-grilling\.md[\s\S]*?actual_path: \.workflow\/artifacts\/clarify-with-grilling\.md[\s\S]*?inputs: \[user-request\]/,
+  )
+  assert.match(
+    registry,
+    /- id: plan-with-writing-plans[\s\S]*?expected_output_path: \.workflow\/artifacts\/plan-with-writing-plans\.md[\s\S]*?actual_path: \.workflow\/artifacts\/plan-with-writing-plans\.md[\s\S]*?inputs: \[clarify-with-grilling\]/,
+  )
+
+  assert.match(workItem, /^state: completed$/m)
+  assert.match(workItem, /current:[\s\S]*?step_id: plan-with-writing-plans[\s\S]*?status: completed/)
+  assert.match(
+    workItem,
+    /event: clarification-confirmed[\s\S]*?step_id: clarify-with-grilling[\s\S]*?status: completed[\s\S]*?artifact: clarify-with-grilling[\s\S]*?actual_path: \.workflow\/artifacts\/clarify-with-grilling\.md/,
+  )
+  assert.match(
+    workItem,
+    /event: binding-completed[\s\S]*?step_id: plan-with-writing-plans[\s\S]*?status: completed[\s\S]*?artifact: plan-with-writing-plans[\s\S]*?actual_path: \.workflow\/artifacts\/plan-with-writing-plans\.md/,
+  )
+  assert.match(workItem, /event: clarification-round[\s\S]*?status: settled/)
+})

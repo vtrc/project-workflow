@@ -1,0 +1,71 @@
+version: 1
+id: registro-flow
+recipe_id: grill-me-superpowers-trial
+request: "Prueba: diseña un flujo de registro sencillo."
+state: completed
+current:
+  step_id: plan-with-writing-plans
+  binding_index: 0
+  binding_name: writing-plans
+  status: completed
+awaiting: null
+resolved_execution:
+  model: host_default
+  reasoning_effort: host_default
+  delegation: inline
+history:
+  - event: started
+    step_id: clarify-with-grilling
+    binding_name: grilling
+    status: awaiting_user
+  - event: clarification-round
+    round: 1
+    status: settled
+    decisions:
+      target: user-account
+      context: web-self-service
+      required_fields: [email, password]
+      included: basic-validation
+      excluded: [social-login, multi-factor-authentication]
+  - event: clarification-round
+    round: 2
+    status: settled
+    decisions:
+      email_verification: required
+      errors: inline-clear-no-duplicates
+      success: auto-login-welcome-screen
+  - event: clarification-round
+    round: 3
+    status: settled
+    decisions:
+      resend_verification: allowed-with-cooldown
+      password_minimum_length: 12
+      legal_consent: required_terms_and_privacy
+  - event: clarification-round
+    round: 4
+    status: settled
+    decisions:
+      unverified_duplicate: generic_message_with_resend
+      expired_verification: request_new_link
+      abuse_protection: rate_limit_attempts_and_resends
+      excluded: [captcha]
+  - event: clarification-confirmed
+    step_id: clarify-with-grilling
+    binding_name: grilling
+    status: completed
+    confirmation: "ok"
+    artifact: clarify-with-grilling
+    actual_path: .workflow/artifacts/clarify-with-grilling.md
+  - event: transitioned
+    from_step_id: clarify-with-grilling
+    to_step_id: plan-with-writing-plans
+    status: completed
+  - event: binding-completed
+    step_id: plan-with-writing-plans
+    binding_name: writing-plans
+    status: completed
+    artifact: plan-with-writing-plans
+    actual_path: .workflow/artifacts/plan-with-writing-plans.md
+  - event: completed
+    step_id: plan-with-writing-plans
+    status: completed

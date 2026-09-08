@@ -1,0 +1,27 @@
+version: 1
+work_item_id: registro-flow
+artifacts:
+  - id: user-request
+    owner: workflow-personal
+    state: ready
+    expected_output_path: null
+    actual_path: null
+    inputs: []
+    authoritative: true
+    replaces: null
+  - id: clarify-with-grilling
+    owner: grilling
+    state: ready
+    expected_output_path: .workflow/artifacts/clarify-with-grilling.md
+    actual_path: .workflow/artifacts/clarify-with-grilling.md
+    inputs: [user-request]
+    authoritative: true
+    replaces: null
+  - id: plan-with-writing-plans
+    owner: writing-plans
+    state: ready
+    expected_output_path: .workflow/artifacts/plan-with-writing-plans.md
+    actual_path: .workflow/artifacts/plan-with-writing-plans.md
+    inputs: [clarify-with-grilling]
+    authoritative: true
+    replaces: null
