@@ -5,6 +5,7 @@ request: "Prueba: diseña un flujo de registro sencillo."
 state: completed
 current:
   step_id: plan-with-writing-plans
+  inputs: [clarify-with-grilling]
   binding_index: 0
   binding_name: writing-plans
   status: completed
@@ -12,7 +13,7 @@ awaiting: null
 resolved_execution:
   model: host_default
   reasoning_effort: host_default
-  delegation: inline
+  delegation: subagent
 history:
   - event: started
     step_id: clarify-with-grilling
@@ -64,6 +65,7 @@ history:
     step_id: plan-with-writing-plans
     binding_name: writing-plans
     status: completed
+    inputs: [clarify-with-grilling]
     artifact: plan-with-writing-plans
     actual_path: .workflow/artifacts/plan-with-writing-plans.md
   - event: completed

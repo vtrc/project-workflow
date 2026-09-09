@@ -25,3 +25,20 @@ artifacts:
     inputs: [clarify-with-grilling]
     authoritative: true
     replaces: null
+  - id: review-with-grilling
+    owner: writing-plans
+    state: ready
+    expected_output_path: .workflow/artifacts/review-with-grilling.md
+    actual_path: .workflow/artifacts/review-with-grilling.md
+    inputs: [clarify-with-grilling]
+    authoritative: true
+    replaces: null
+  - id: release-plan
+    owner: writing-plans
+    state: planned
+    expected_output_path: .workflow/artifacts/release-plan.md
+    actual_path: null
+    inputs: [clarify-with-grilling, review-with-grilling]
+    join_requires_all_inputs: true
+    authoritative: true
+    replaces: null

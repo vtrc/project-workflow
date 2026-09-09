@@ -1,36 +1,27 @@
 # Copy this template to .workflow/workflow.yaml before editing.
 # yaml-language-server: $schema=../workflow.schema.yaml
-# Portable recipe template. Replace the placeholder Skill names with local
-# Skills installed in the consuming project; no generated artifacts are needed
-# before the workflow starts.
+# Replace placeholder Skill names with Skills installed in the consuming project.
 id: my-personal-workflow
-default_delegation: inline
-default_on_blocked: ask_user
-default_invocation: compose
+default_delegation: subagent
 model: host_default
 reasoning_effort: host_default
 
 steps:
   - id: first-step
-    execution: sequential
-    completion: all_required
-    delegation: inline
-    inputs: [user-request]
-    on_success: second-step
-    on_blocked: ask_user
+    inputs: []
     skills:
       - name: my-clarification-skill
         role: primary
-        invocation: compose
 
   - id: second-step
-    execution: sequential
-    completion: all_required
-    delegation: inline
     inputs: [first-step]
-    on_success: complete
-    on_blocked: ask_user
+    prompt: Turn the first artifact into an actionable plan.
     skills:
       - name: my-planning-skill
         role: primary
-        invocation: compose
+
+  - id: review-step
+    inputs: [first-step]
+    skills:
+      - name: my-review-skill
+        role: primary

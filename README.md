@@ -4,153 +4,76 @@
 
 ## Un ejemplo antes de empezar
 
-Imagina que pides: **«Diseña un registro para mi proyecto»**. Ya tienes dos
-Skills disponibles: `grilling` hace preguntas para aclarar qué necesitas y
-`writing-plans` convierte las respuestas en un plan. Project Workflow conecta
-esas Skills mediante una receta `.workflow/workflow.yaml`: primero guarda el resultado de
-las preguntas y después se lo entrega a la Skill de planificación. Obtienes un
-flujo coordinado y sus artefactos, sin tener que invocar cada Skill a mano.
-
-No necesitas crear ni reescribir las Skills. Basta con tener Skills locales o
-de terceros disponibles y declararlas en `.workflow/workflow.yaml`. Este repositorio
-aporta las instrucciones que conectan esas piezas; no añade un programa que
-funcione por su cuenta.
+Imagina que pides: **«Diseña un registro para mi proyecto»**. Project Workflow
+conecta Skills locales mediante `.workflow/workflow.yaml`. El orquestador prepara
+un Step listo, delega una unidad de ejecución y la Skill `primary` publica un único
+artefacto derivado del ID del Step. No tienes que invocar Skills intermedias.
 
 ## Cómo funciona
 
 ```text
-Petición: «Diseña un registro»
+Conversación del usuario
         ↓
-.workflow/workflow.yaml
+.workflow/workflow.yaml (grafo de dependencias mediante inputs)
         ↓
-Skill 1: grilling
+Step runner delegado
+        ├─ Skills supporting/review aportan contexto
+        └─ Skill primary publica un artefacto derivado
         ↓
-Artefacto: .workflow/artifacts/clarify-request.md
+.workflow/artifacts/<step.id>.md
         ↓
-Skill 2: writing-plans
-        ↓
-Artefacto: .workflow/artifacts/make-plan.md
+Steps cuyos inputs ya están listos
 ```
 
-Las dos Skills del diagrama son solo un ejemplo. La receta actual las nombra,
-pero el framework no las incluye ni las exige: puedes sustituirlas por Skills
-locales o de terceros que hagan el trabajo que necesitas.
+El runtime registry, no la receta, es propietario del estado, intentos, IDs de
+ ejecución, revisiones, checksums, linaje, reemplazos y colisiones.
 
-## Tres conceptos para empezar
-
-### 1. Skill
-
-Una Skill es un conjunto reutilizable de instrucciones que explica a un agente
-de IA cómo realizar una tarea concreta. Puede vivir en tu proyecto o provenir
-de un tercero.
-
-### 2. `.workflow/workflow.yaml`
-
-Es la receta del flujo. Indica qué Skills usar, en qué orden, qué información
-recibe cada una y a qué paso se pasa después. El ID de cada paso también es su
-ID de artefacto: el runtime deriva `.workflow/artifacts/<step.id>.md` y los
-pasos posteriores consumen el ID del paso anterior.
-
-### 3. Project Workflow
-
-Es este proyecto/framework. Lee `.workflow/workflow.yaml` y compone las Skills que ya
-tienes disponibles a través del cliente que estés usando. El cliente carga y
-aplica sus instrucciones; Project Workflow coordina la secuencia y los
-artefactos.
-
-## Catálogo local de Skills
-
-En cada activación, Project Workflow ejecuta `skill-discovery` automáticamente
-como preflight no bloqueante en el mismo contexto del host. Con acceso ya
-concedido a la raíz del proyecto, publica `.workflow/skill-catalog.json` para
-Studio. Si falta acceso local, capacidad del adaptador global o escritura
-atómica, muestra o registra una advertencia y el workflow YAML continúa sin
-inventar datos. También puedes invocar `skill-discovery` directamente cuando
-quieras actualizar el catálogo de forma explícita.
-
-El catálogo contiene metadatos mínimos y no expone rutas absolutas ni contenido
-de Skills. Studio solo lo recarga desde la carpeta que la persona ya eligió; no
-busca directorios globales ni puede regenerarlo por sí mismo. El contrato completo
-es propiedad de [`skill-discovery`](.agents/skills/skill-discovery/SKILL.md).
-
-## YAML mínimo completo
-
-El siguiente archivo reproduce el caso del registro y contiene todas las
-secciones necesarias de una receta válida. `grilling` y `writing-plans` deben
-estar disponibles en tu cliente si ejecutas este ejemplo sin cambiarlos.
+## Receta canónica
 
 ```yaml
 # yaml-language-server: $schema=../workflow.schema.yaml
 id: register-design-workflow
-default_delegation: inline
-default_on_blocked: ask_user
-default_invocation: compose
+default_delegation: subagent
 model: host_default
 reasoning_effort: host_default
-
 steps:
   - id: clarify-request
-    execution: sequential
-    completion: all_required
-    delegation: inline
-    inputs: [user-request]
-    on_success: make-plan
-    on_blocked: ask_user
+    inputs: []
     skills:
       - name: grilling
         role: primary
-        invocation: compose
-
   - id: make-plan
-    execution: sequential
-    completion: all_required
-    delegation: inline
     inputs: [clarify-request]
-    on_success: complete
-    on_blocked: ask_user
+    prompt: Convierte la aclaración en un plan accionable.
     skills:
       - name: writing-plans
         role: primary
-        invocation: compose
 ```
 
-### Cómo leer el ejemplo
+Un Step raíz usa `inputs: []`. Cada Step posterior solo referencia IDs anteriores.
+Varios hijos pueden consumir el mismo padre (fan-out), y un Step con varios
+`inputs` es un join que espera todos los artefactos listos. La disponibilidad se
+deriva de `inputs`: no hay transiciones, salidas ni controles de invocación por
+Skill escritos en la receta.
 
-- Los campos del principio (`id` y los valores `default_*`) identifican el flujo
-  y sus valores generales.
-- `steps` es la lista ordenada de etapas. `clarify-request` recibe la petición
-  inicial (`user-request`), posee el ID de artefacto `clarify-request` y por
-  tanto publica `.workflow/artifacts/clarify-request.md`.
-- `on_success: make-plan` indica que, si la primera etapa termina bien, empieza
-  la segunda. La segunda termina con `on_success: complete`.
-- Dentro de `skills`, `name` debe coincidir exactamente con el nombre de la
-  Skill disponible. Cada paso tiene exactamente una `role: primary`: es quien
-  produce el artefacto público. Las Skills `supporting` y `review` aportan solo
-  contexto. La Skill de entrada compone cada Skill declarada dentro del contexto
-  activo del cliente.
-- `inputs: [clarify-request]` de la segunda etapa consume el artefacto del
-  primer paso. `prompt` es un contexto opcional y no vacío a nivel de paso para
-  las Skills compuestas cuando los inputs y las instrucciones de la Skill no
-  bastan.
-- `model`, `reasoning_effort`, `delegation` y `execution` son intenciones que el
-  adaptador del cliente interpreta; no son comandos universales.
+`model`, `reasoning_effort` y `delegation` son políticas de workflow/Step. Cada
+binding solo contiene `name` y `role`: exactamente una Skill `primary` y, de forma
+opcional, Skills `supporting` y `review`. El Step runner delegado carga todas,
+pero solo `primary` produce `.workflow/artifacts/<step.id>.md`.
 
-### Historial de artefactos y migración en el runtime
+Si un Step queda bloqueado o necesita una decisión, el runtime conserva el estado
+reanudable y pregunta al usuario. No existe un campo de política de bloqueo
+escrito por el usuario.
 
-El registro del runtime (runtime registry), no la receta, es propietario de estado, IDs de
-ejecución, revisiones, checksums, linaje, reemplazo y manejo de colisiones.
-Deriva la ruta pública de cada ID de paso en cada ejecución. Un importador
-compatible de formatos heredados puede leer declaraciones de artefactos
-redundantes solo cuando coinciden con esa derivación; un guardado canónico las
-elimina. Las declaraciones heredadas incompatibles se rechazan en lugar de
-reescribirse en silencio.
+## Importaciones heredadas
 
-Puedes empezar adaptando [`workflow.example.yaml`](workflow.example.yaml), que
-usa nombres de Skills de marcador de posición.
+El lector puede aceptar declaraciones de artefacto retiradas solo cuando repiten
+el ID/ruta derivados. La salida canónica las omite. Los campos retirados de
+transición, ejecución, completion, invocación, overrides de bindings o política de
+bloqueo nunca se descartan en silencio: los valores incompatibles producen un
+diagnóstico de migración específico del campo.
 
 ## Instalación y primer uso
-
-### Opción A: clonar el repositorio completo
 
 ```text
 git clone https://github.com/vtrc/project-workflow.git
@@ -158,78 +81,13 @@ cd project-workflow
 mkdir -p .workflow && cp workflow.example.yaml .workflow/workflow.yaml
 ```
 
-Después sustituye las Skills de marcador de posición por Skills disponibles en
-tu proyecto y activa `project-workflow` mediante el mecanismo nativo de tu
-cliente.
-
-### Opción B: instalar solo las Skills del framework
-
-Desde el proyecto donde quieres usar el flujo, ejecuta:
-
-```text
-npx skills add https://github.com/vtrc/project-workflow --skill project-workflow workflow-orchestrator skill-discovery
-```
-
-El comando no instala `.workflow/workflow.yaml`, la receta canónica ni las Skills externas
-que esta referencie. Para crear la receta, copia o adapta
-[`workflow.example.yaml`](workflow.example.yaml) y sigue las dependencias que
-hayas declarado.
-
-### Activar el flujo
-
-El usuario activa solo la Skill de entrada `project-workflow` mediante el
-mecanismo nativo de su cliente. `$project-workflow` es únicamente un ejemplo de
-invocación estilo Codex; no es un comando universal. No invoques manualmente
-`grilling`, `writing-plans` ni otras Skills intermedias: la entrada las compone
-en el orden indicado por `.workflow/workflow.yaml`.
-
-Los artefactos generados se guardan normalmente bajo `.workflow/`. Esa carpeta
-es estado de trabajo, no código fuente que este repositorio publique.
-
-## Qué incluye, qué no incluye y límites
-
-### Incluye
-
-- [`project-workflow`](.agents/skills/project-workflow/SKILL.md), la Skill de
-  entrada.
-- [`workflow-orchestrator`](.agents/skills/workflow-orchestrator/SKILL.md), las
-  instrucciones de coordinación.
-- [`workflow.example.yaml`](workflow.example.yaml), el schema y los contratos
-  técnicos.
-
-### No incluye
-
-- Skills externas como `grilling` o `writing-plans`;
-- un runtime de aplicación, servidor, MCP, base de datos o gestor de paquetes;
-- el archivo `.workflow/workflow.yaml` de tu proyecto ni el estado generado de
-  `.workflow/`.
-
-Este framework está pensado para clientes que implementan el estándar **Agent
-Skills**: un formato y unas reglas para que un cliente descubra y cargue Skills.
-`.agents/skills/` es la fuente canónica de Skills de este repositorio, aunque un
-adaptador puede mapearla a la ruta nativa de su cliente. No se promete
-compatibilidad con clientes arbitrarios.
-
-El proyecto es **instruction-only**. El cliente es quien carga y aplica las
-instrucciones, persiste el estado y decide qué capacidades admite. Por eso no
-hay enforcement runtime ni una garantía de que cualquier cliente ejecute en
-paralelo, delegue trabajo o acepte un modelo concreto.
+Sustituye las Skills de ejemplo por Skills disponibles en tu cliente y activa solo
+la Skill de entrada `project-workflow` mediante el mecanismo nativo del cliente.
 
 ## Referencias técnicas
 
-- [`workflow.schema.yaml`](workflow.schema.yaml): JSON Schema Draft 2020-12
-  para estructura, tipos y enums básicos.
-- [Referencia del schema de receta](.agents/skills/workflow-orchestrator/references/recipe-schema.md):
-  campos, valores heredados y límites de la validación.
-- [Contrato de artefactos](.agents/skills/workflow-orchestrator/references/artifact-contract.md):
-  estados, ownership, colisiones y trazabilidad de resultados.
-- [Contrato de delegación](.agents/skills/workflow-orchestrator/references/delegation-contract.md):
-  composición y límites de las entregas entre etapas.
-- [Skill de entrada](.agents/skills/project-workflow/SKILL.md) y
-  [orquestador](.agents/skills/workflow-orchestrator/SKILL.md): instrucciones
-  completas que aplica el cliente compatible.
-
-Si necesitas el vocabulario interno, una **binding** es la declaración de una
-Skill dentro de una etapa; **readiness** significa que un artefacto está listo
-para consumirse; y **lineage** describe su origen y relación con quien lo
-produjo. Estos términos no son necesarios para el primer uso.
+- [`workflow.schema.yaml`](workflow.schema.yaml): JSON Schema Draft 2020-12.
+- [Schema de receta](.agents/skills/workflow-orchestrator/references/recipe-schema.md).
+- [Contrato de artefactos](.agents/skills/workflow-orchestrator/references/artifact-contract.md).
+- [Contrato de delegación](.agents/skills/workflow-orchestrator/references/delegation-contract.md).
+- [Orquestador](.agents/skills/workflow-orchestrator/SKILL.md).

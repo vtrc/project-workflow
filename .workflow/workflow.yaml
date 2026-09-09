@@ -1,37 +1,28 @@
 # yaml-language-server: $schema=../workflow.schema.yaml
-# Recipe data only: core Skills do not depend on these named methodologies.
+# Recipe data only: Skills are loaded by the delegated Step runner.
 id: grill-me-superpowers-trial
-default_delegation: inline
-default_on_blocked: ask_user
-default_invocation: compose
+default_delegation: subagent
 model: host_default
 reasoning_effort: host_default
 
-# Start once with $project-workflow. `compose` means the parent workflow reads
-# and applies the named Skill's instructions; the user never invokes these steps.
 steps:
   - id: clarify-with-grilling
-    execution: sequential
-    completion: all_required
-    delegation: inline
-    inputs: [user-request]
-    on_success: plan-with-writing-plans
-    on_blocked: ask_user
+    inputs: []
     skills:
       - name: grilling
         role: primary
-        invocation: compose
 
   - id: plan-with-writing-plans
-    execution: sequential
-    completion: all_required
-    delegation: inline
     inputs: [clarify-with-grilling]
-    on_success: complete
-    on_blocked: ask_user
+    prompt: Turn the clarified requirements into an actionable plan.
     skills:
       - name: writing-plans
         role: primary
-        invocation: compose
-        model: inherit
-        reasoning_effort: inherit
+
+  - id: review-with-grilling
+    inputs: [clarify-with-grilling]
+    skills:
+      - name: grilling
+        role: supporting
+      - name: writing-plans
+        role: primary
