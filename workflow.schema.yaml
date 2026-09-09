@@ -2,78 +2,48 @@ $schema: https://json-schema.org/draft/2020-12/schema
 $id: https://example.invalid/workflow.schema.yaml
 title: Agent Skills workflow recipe
 description: >-
-  Machine-readable structural schema for a project-local `.workflow/workflow.yaml` recipe
-  used by Agent Skills-compatible clients. Semantic orchestration rules and
-  host capability checks remain the responsibility of the workflow
-  orchestrator; model and delegation values are host-interpreted intents, not
-  universal runtime commands.
+  Structural schema for a project-local workflow whose Steps form an explicit
+  dependency graph. Runtime status and artifact history remain registry-owned.
 type: object
 additionalProperties: false
 required:
   - id
   - default_delegation
-  - default_on_blocked
-  - default_invocation
   - model
   - reasoning_effort
   - steps
 properties:
   id:
-    type: string
-    minLength: 1
+    $ref: '#/$defs/nonEmptyId'
     description: Stable identifier for this workflow recipe.
-    examples:
-      - grill-me-superpowers-trial
   default_delegation:
     $ref: '#/$defs/delegation'
-    description: Delegation mode inherited by steps that do not set delegation.
-    default: inline
-  default_on_blocked:
-    $ref: '#/$defs/onBlocked'
-    description: Action inherited by steps that do not set on_blocked.
-    default: ask_user
-  default_invocation:
-    $ref: '#/$defs/invocation'
-    description: Invocation mode inherited by bindings that do not set invocation.
-    default: compose
+    description: Delegation policy inherited by Steps without delegation.
+    default: subagent
   model:
     $ref: '#/$defs/model'
-    description: Workflow-level model intent; host_default asks the host for its configured model. The host adapter interprets this value.
+    description: Workflow-level host model intent.
     default: host_default
   reasoning_effort:
     $ref: '#/$defs/reasoningEffort'
-    description: Workflow-level reasoning intent; host_default asks the host for its configured effort. The host adapter interprets this value.
+    description: Workflow-level host reasoning intent.
     default: host_default
   steps:
     type: array
     minItems: 0
-    description: >-
-      Ordered list of workflow steps. An empty list is a valid initialized
-      recipe; Project Workflow asks the user to define its first step before
-      execution.
+    description: Ordered Step declarations in dependency order.
     items:
       $ref: '#/$defs/step'
-    examples:
-      - id: first-step
-        execution: sequential
-        completion: all_required
-        on_success: complete
-        skills:
-          - name: example-skill
-            role: primary
 
 $defs:
   nonEmptyId:
     type: string
     minLength: 1
-    description: Non-empty recipe identifier; uniqueness and cross references are semantic checks.
+    description: Non-empty recipe or Step identifier.
   model:
     type: string
     minLength: 1
-    description: >-
-      Model intent. Use inherit or host_default, or a non-empty model value
-      supported by the current host; this schema intentionally does not
-      enumerate host-specific model names.
+    description: Host model intent; the host interprets supported values.
     examples:
       - host_default
       - inherit
@@ -81,10 +51,7 @@ $defs:
   reasoningEffort:
     type: string
     minLength: 1
-    description: >-
-      Reasoning intent. Use inherit or host_default, or a non-empty reasoning
-      value supported by the current host; this schema intentionally does not
-      enumerate host-specific values.
+    description: Host reasoning intent; the host interprets supported values.
     examples:
       - host_default
       - inherit
@@ -95,107 +62,51 @@ $defs:
       - inline
       - subagent
       - auto
-    description: >-
-      Delegation intent for the host adapter: inline in the active context, to a
-      subagent, or automatically according to host policy. These values are not
-      universal runtime commands.
-  onBlocked:
-    type: string
-    enum:
-      - ask_user
-      - stop
-    description: Action when a required step or binding is blocked.
-  invocation:
-    type: string
-    enum:
-      - compose
-      - user_explicit
-      - host_permitted
-    description: >-
-      How a binding is invoked: compose its local Skill in the parent context,
-      require explicit user invocation, or use a host-proven capability.
-  execution:
-    type: string
-    enum:
-      - sequential
-      - parallel
-    description: Whether bindings run in list order or concurrently when supported by the host; this is an execution intent, not a universal concurrency command.
-  completion:
-    type: string
-    enum:
-      - all_required
-      - any_success
-    description: Condition under which the step is considered complete.
+    description: Step delegation policy interpreted by the host.
   role:
     type: string
     enum:
       - primary
       - supporting
       - review
-    description: Responsibility label for a binding; it does not select a methodology.
-  required:
-    type: boolean
-    default: true
-    description: Whether this binding must succeed for step completion or can be skipped.
+    description: Skill responsibility within the delegated Step.
   step:
     type: object
     additionalProperties: false
     required:
       - id
-      - execution
-      - completion
-      - on_success
+      - inputs
       - skills
     properties:
       id:
         $ref: '#/$defs/nonEmptyId'
-        description: Unique identifier for this step.
+        description: Unique Step identifier and derived artifact ID.
+      inputs:
+        type: array
+        minItems: 0
+        uniqueItems: true
+        items:
+          $ref: '#/$defs/nonEmptyId'
+        description: Preceding Step IDs whose ready artifacts this Step consumes.
       prompt:
         type: string
         minLength: 1
-        description: Optional context for composed Skills in this step.
-      execution:
-        $ref: '#/$defs/execution'
-      completion:
-        $ref: '#/$defs/completion'
+        description: Optional context supplied to the delegated Step runner.
       model:
         $ref: '#/$defs/model'
-        description: Optional step-level model intent overriding the workflow value.
+        description: Optional Step-level model override.
       reasoning_effort:
         $ref: '#/$defs/reasoningEffort'
-        description: Optional step-level reasoning intent overriding the workflow value.
+        description: Optional Step-level reasoning override.
       delegation:
         $ref: '#/$defs/delegation'
-        description: Optional delegation mode overriding the workflow default.
-      inputs:
-        type: array
-        items:
-          $ref: '#/$defs/nonEmptyId'
-        uniqueItems: true
-        default: []
-        description: Optional user-request or preceding step identifiers consumed by this step.
-      on_success:
-        anyOf:
-          - $ref: '#/$defs/nonEmptyId'
-          - const: complete
-        description: Later step identifier or complete; ordering and reachability are semantic checks.
-      on_blocked:
-        $ref: '#/$defs/onBlocked'
-        description: Optional action overriding the workflow default when this step blocks.
+        description: Optional Step-level delegation override.
       skills:
         type: array
         minItems: 1
-        description: Non-empty ordered list of Skill bindings.
+        description: Skills loaded by the delegated Step runner.
         items:
           $ref: '#/$defs/binding'
-    examples:
-      - id: example-step
-        execution: sequential
-        completion: all_required
-        on_success: complete
-        skills:
-          - name: example-primary
-            role: primary
   binding:
     type: object
     additionalProperties: false
@@ -205,21 +116,6 @@ $defs:
     properties:
       name:
         $ref: '#/$defs/nonEmptyId'
-        description: Exact local Skill name from the Skill frontmatter.
+        description: Exact local Skill name.
       role:
         $ref: '#/$defs/role'
-      invocation:
-        $ref: '#/$defs/invocation'
-        description: Optional invocation mode overriding default_invocation.
-      required:
-        $ref: '#/$defs/required'
-      model:
-        $ref: '#/$defs/model'
-        description: Optional binding-level model intent; highest precedence.
-      reasoning_effort:
-        $ref: '#/$defs/reasoningEffort'
-        description: Optional binding-level reasoning intent; highest precedence.
-    examples:
-      - name: example-primary
-        role: primary
-        invocation: compose

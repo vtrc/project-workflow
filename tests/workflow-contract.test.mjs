@@ -30,7 +30,7 @@ test('defines a step-owned artifact schema', async () => {
   assert.doesNotMatch(schema, /^  - artifact_root$/m)
 
   assert.match(step, /      prompt:\n        type: string\n        minLength: 1/)
-  assert.match(step, /context for composed Skills/i)
+  assert.match(step, /context supplied to the delegated Step runner/i)
   assert.doesNotMatch(step, /^      outputs:/m)
 
   assert.doesNotMatch(binding, /^      (artifact|output_file|on_exists):/m)
@@ -44,6 +44,20 @@ test('canonical schema examples omit retired artifact configuration', async () =
   const schema = await load('workflow.schema.yaml')
 
   assert.doesNotMatch(schema, /^\s+(artifact_root|outputs|artifact|output_file|on_exists):/m)
+})
+
+test('defines the v2 step dependency schema', async () => {
+  const schema = await load('workflow.schema.yaml')
+  const step = definition(schema, 'step')
+  const binding = definition(schema, 'binding')
+
+  assert.match(schema, /required:\n(?:[\s\S]*\n)?  - id\n(?:[\s\S]*\n)?  - default_delegation\n(?:[\s\S]*\n)?  - model\n(?:[\s\S]*\n)?  - reasoning_effort\n(?:[\s\S]*\n)?  - steps/)
+  assert.match(step, /required:[\s\S]*- inputs/)
+  assert.match(step, /inputs:\n        type: array\n        minItems: 0\n        uniqueItems: true/)
+  assert.match(step, /inputs:[\s\S]*preceding Step IDs/i)
+  assert.doesNotMatch(schema, /default_invocation|default_on_blocked|on_success|completion|execution/)
+  assert.doesNotMatch(binding, /required:[\s\S]*- required/)
+  assert.doesNotMatch(binding, /invocation|reasoning_effort|model|artifact|output_file|on_exists/)
 })
 
 test('defines the orchestrator contract for a single step-owned public artifact', async () => {
