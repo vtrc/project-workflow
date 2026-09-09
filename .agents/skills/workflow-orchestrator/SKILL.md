@@ -1,120 +1,73 @@
 ---
 name: workflow-orchestrator
-description: "Trigger: ordered recipe workflows. Compose declared local Skills, persist step-owned artifacts, and advance only through .workflow/workflow.yaml."
+description: "Trigger: ordered dependency-graph workflows. Prepare ready Step inputs, delegate one Step runner, and register its Step-owned artifact."
 license: Apache-2.0
 metadata:
   author: project
-  version: "1.2"
+  version: "2.0"
 ---
 
 # Workflow Orchestrator
 
 ## Activation Contract
 
-Use when a project work item is governed by `.workflow/workflow.yaml` in an
-Agent Skills-compatible client. Resolve only the recipe's declared local Skills;
-do not choose a workflow, Skill, or stage. The client invokes the project entry
-Skill through its own native mechanism; `$project-workflow` is only a Codex-style
-example.
+Use when a project work item is governed by `.workflow/workflow.yaml`. The
+orchestrator resolves the declared recipe and local Skills; it does not choose a
+workflow or independently invoke a Skill.
 
 ## Hard Rules
 
-- Treat the recipe as the sole authority for step topology, inputs, prompts,
-  bindings, models, delegation, and transitions. Validate it and durable runtime
-  state before execution.
-- A step owns one public artifact. Its logical artifact ID is `step.id` and its
-  derived public path is `.workflow/artifacts/<step.id>.md`.
-- Every step has exactly one `primary` binding. Only that primary can publish
-  the step's public artifact. `supporting` and `review` bindings contribute
-  context to the primary and never publish separate public artifacts.
-- `step.outputs` is derived as `[step.id]`; it is not an authored recipe field.
-  A step input is `user-request` or the ID of an earlier step.
-- The runtime registry exclusively owns status, `run_id`, revisions, checksums,
-  lineage, replacement, and collision policy. Do not record those concerns in
-  `workflow.yaml` or infer them from a file path.
-- The parent workflow is the only manual entry point. A `compose` binding reads
-  the named local Skill's `SKILL.md` and applies its instructions in the active
-  host context. This is not an independent host invocation or black-box claim.
-- Resolve composition generically from the recipe name. Do not copy a referenced
-  Skill's instructions into this core or special-case a methodology.
-- Compose only an eligible local Skill: its `SKILL.md` exists, its frontmatter
-  name matches the binding, and its policy does not prohibit implicit, model, or
-  composition invocation.
-- Give a composed Skill only declared ready inputs, the step prompt when present,
-  its role-specific contract, and the user conversation needed for this work
-  item. The orchestrator alone updates the Work Item Record, Artifact Registry,
-  and transitions.
+- `inputs` is the authored dependency graph. A Step is ready only when every
+  declared input ID has a ready artifact in the runtime registry.
+- Every Step has exactly one `primary` binding. Supporting and review bindings
+  provide context; only the primary publishes the Step's public artifact.
+- The derived artifact ID is `step.id` and the derived path is
+  `.workflow/artifacts/<step.id>.md`. Artifact output paths are never authored.
+- Workflow and Step `model`, `reasoning_effort`, and `delegation` are host policy
+  intents. Skill bindings contain only `name` and `role`.
+- The runtime registry owns status, run IDs, revisions, checksums, lineage,
+  replacement, and collision handling.
+- The orchestrator never independently invokes Skills. It delegates one Step
+  execution unit according to the resolved Step-level delegation policy.
 
-## Host/client capability boundary
+## Step-runner handoff
 
-The host must be an Agent Skills-compatible client able to discover and load the
-canonical `.agents/skills/<name>/SKILL.md` source (or map it to a native Skill
-directory), persist project-relative `.workflow/` state and artifacts, and ask
-questions whose later ordinary answers can resume the active work item. The
-recipe's `model`, `reasoning_effort`, `delegation`, and `execution: parallel`
-values are intents interpreted by the host; they are not universal runtime
-commands. Unsupported explicit model or reasoning values block. A host may run
-parallel intent sequentially only when completion semantics remain equivalent.
-If a required capability or policy is unavailable, record the exact failure and
-follow `on_blocked`; never emulate it with a hidden runtime or silently
-substitute a client, Skill, or methodology.
+The delegated Step runner receives:
 
-## Decision Gates
+1. the user conversation for the work item;
+2. every declared ready input artifact, in recipe order;
+3. the optional `step.prompt`; and
+4. the workflow and Step model, reasoning, and delegation policies.
 
-| Condition | Action |
-| --- | --- |
-| `steps` is empty | Ask the user to declare the first ordered step. |
-| A step has zero or multiple `primary` bindings | Mark the step blocked before composing any binding. |
-| Current binding is `compose` | Resolve it, apply its instructions, and retain it until it completes, blocks, or awaits the user. |
-| Current binding is `user_explicit` | Mark it blocked: this opt-out is incompatible with a hands-off recipe. |
-| Current binding is `host_permitted` | Use only a host capability explicitly proven by the capability boundary above; otherwise mark it blocked. |
-| A composed Skill awaits a user answer | Persist `state: active` and `current.status: awaiting_user`; do not advance. |
-| A required binding blocks | Follow the step's `on_blocked`, or the workflow default. |
+The Step runner loads the Step's supporting and review Skills for context, then
+loads the primary Skill to perform the public work. A successful primary returns
+a structured result and writes only `.workflow/artifacts/<step.id>.md`.
 
 ## Execution Steps
 
-1. Load `.workflow/workflow.yaml`, `.workflow/work-item.yaml`,
-   `.workflow/artifact-registry.yaml`, and the references below.
-2. For a new request, create durable work-item state, register `user-request` as
-   ready source context, and select the first declared step.
-3. Validate root settings, ordered transitions, local binding resolution,
-   composition eligibility, input readiness, unique step IDs, exactly one
-   primary, and model-resolution hierarchy.
-4. Compose `supporting` and `review` bindings only to produce context for the
-   primary. They do not receive a public-artifact publishing contract.
-5. Compose the primary with the ready inputs, optional `step.prompt`, and the
-   derived artifact ID and path. The primary writes
-   `.workflow/artifacts/<step.id>.md` when it succeeds and returns the required
-   structured step result.
-6. Validate that structured result against the active step and registry. File
-   existence alone is not success: the result must identify the step, primary,
-   derived artifact, outcome, and input lineage. The registry records runtime
-   metadata and exposes the artifact only after successful validation.
-7. Persist `awaiting_user`, `completed`, or `blocked` as appropriate, then
-   follow the declared transition. Continue until the workflow awaits the user,
-   blocks, or completes.
+1. Load the recipe, Work Item Record, and runtime Artifact Registry.
+2. Validate ordered unique Step IDs, preceding input IDs, an acyclic graph, and
+   exactly one primary binding per Step.
+3. Find Steps whose `inputs` are all ready. Roots use `inputs: []`; multiple
+   consumers create fan-out and multiple input IDs create joins.
+4. Resolve the Step's delegation, model, and reasoning policy and delegate one
+   Step runner with the complete handoff above.
+5. Validate the structured primary result against the active Step, derived
+   artifact identity, and input lineage. File existence alone is not success.
+6. Ask the runtime registry to register the one derived artifact and its runtime
+   metadata. Only a ready registration unlocks downstream Steps.
+7. When a Step blocks or needs information, persist resumable state and always
+   ask the user. There is no authored blocked-policy field.
 
 ## Structured Step Result
 
-A primary result must be structured data containing at least:
-
-- `step_id` and `primary` — identity of the completed step and its producer;
-- `outcome` — `completed`, `blocked`, or `awaiting_user`;
-- `artifact_id` and `artifact_path` — equal to the derived `step.id` and
-  `.workflow/artifacts/<step.id>.md` on completion;
-- `inputs` — consumed source IDs and their registered lineage; and
-- `summary` — a durable handoff statement for the next step.
-
-The registry, not the producer result, assigns runtime status, `run_id`,
-revision, checksum, lineage record, replacement, and collision outcome.
-
-## Output Contract
-
-Return the work-item identifier, current step and binding, structured result
-outcome, registered artifact, durable state, and next declared action.
+A primary result contains at least `step_id`, `primary`, `outcome`,
+`artifact_id`, `artifact_path`, consumed `inputs` with lineage, and a durable
+`summary`. On success, `artifact_id` and `artifact_path` must equal the derived
+Step ID and path. Primary success plus registry registration defines Step completion.
 
 ## References
 
-- [Recipe schema](references/recipe-schema.md) — validate and interpret the recipe.
-- [Artifact contract](references/artifact-contract.md) — persist state and artifact handoffs.
-- [Delegation contract](references/delegation-contract.md) — composition and bounded handoffs.
+- [Recipe schema](references/recipe-schema.md)
+- [Artifact contract](references/artifact-contract.md)
+- [Delegation contract](references/delegation-contract.md)
